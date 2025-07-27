@@ -12,6 +12,8 @@ const pageRoutes = require('./routes/pageRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const userRoutes = require('./routes/userRoutes');
 const upgradeRoutes = require('./routes/upgradeRoutes');
+const fileMonitorRoutes = require('./routes/fileMonitorRoutes');
+const movieRoutes = require('./routes/movieRoutes');
 const session = require('express-session');
 const passport = require('passport');
 require('./config/passport'); // Passport strategies config (to be created)
@@ -62,6 +64,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/pages', pageRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/upgrade', upgradeRoutes);
+app.use('/api/filemonitor', fileMonitorRoutes);
+app.use('/api/movies', movieRoutes);
 app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {
@@ -69,4 +73,12 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  
+  // Start file monitoring after server starts
+  const fileMonitor = require('./utils/fileMonitor');
+  setTimeout(() => {
+    fileMonitor.startWatching();
+  }, 2000); // Start after 2 seconds to ensure everything is loaded
+});
