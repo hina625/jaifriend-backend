@@ -34,6 +34,9 @@ router.delete('/:id', auth, albumController.deleteAlbum);
 // Like/Unlike album
 router.post('/:id/like', auth, albumController.toggleLike);
 
+// Add reaction to album
+router.post('/:id/reaction', auth, albumController.addReaction);
+
 // Share album
 router.post('/:id/share', auth, albumController.shareAlbum);
 
@@ -45,6 +48,9 @@ router.delete('/:id/comment/:commentId', auth, albumController.deleteComment);
 
 // Save/Unsave album
 router.post('/:id/save', auth, albumController.toggleSave);
+
+// Add view to album
+router.post('/:id/view', auth, albumController.addView);
 
 // Get saved albums for user
 router.get('/saved', auth, albumController.getSavedAlbums);

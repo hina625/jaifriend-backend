@@ -33,7 +33,10 @@ const upload = multer({
 // Get all videos (for watch page)
 router.get('/', videoController.getVideos);
 
-// Get video by ID
+// Get videos by category (must come before parameterized route)
+router.get('/category/:category', videoController.getVideosByCategory);
+
+// Get video by ID (parameterized route comes last)
 router.get('/:id', videoController.getVideoById);
 
 // Create video (with file upload or URL)
@@ -56,8 +59,5 @@ router.delete('/:id/comment/:commentId', auth, videoController.deleteComment);
 
 // Delete video
 router.delete('/:id', auth, videoController.deleteVideo);
-
-// Get videos by category
-router.get('/category/:category', videoController.getVideosByCategory);
 
 module.exports = router; 

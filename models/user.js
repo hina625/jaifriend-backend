@@ -6,22 +6,40 @@ const userSchema = new mongoose.Schema({
   name: { type: String, default: null },
   fullName: { type: String, default: null },
   username: { type: String, required: true, unique: true },
-  avatar: { type: String, default: null },
+  avatar: { type: String, default: '/avatars/1.png.png' },
   coverPhoto: { type: String, default: null },
-  bio: { type: String, default: null },
+  bio: { type: String, default: null, maxlength: 500 },
+  status: { type: String, default: null, maxlength: 100 },
   location: { type: String, default: null },
+  website: { type: String, default: null },
   workplace: { type: String, default: null },
   country: { type: String, default: null },
   address: { type: String, default: null },
   gender: { type: String, enum: ['Male', 'Female', 'Other'], default: null },
+  dateOfBirth: { type: Date, default: null },
+  phone: { type: String, default: null },
   isSetupDone: { type: Boolean, default: false },
   isOnline: { type: Boolean, default: false },
-  savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }], // posts the user has saved
-  following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // users this user follows
-  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // users following this user
-  posts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }], // posts by this user
-  groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }], // groups the user has joined
-  likedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }], // posts the user has liked
+  lastSeen: { type: Date, default: Date.now },
+  isVerified: { type: Boolean, default: false },
+  isPrivate: { type: Boolean, default: false },
+  isBlocked: { type: Boolean, default: false },
+  savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }],
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  posts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }],
+  groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
+  likedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Post' }],
+  notifications: [{
+    type: { type: String, enum: ['like', 'comment', 'follow', 'mention', 'message'] },
+    from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    post: { type: mongoose.Schema.Types.ObjectId, ref: 'Post' },
+    message: String,
+    isRead: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+  }],
+
 }, {
   timestamps: true
 });
@@ -33,5 +51,19 @@ userSchema.pre('validate', function(next) {
   }
   next();
 });
+
+// Update lastSeen when user goes offline
+userSchema.methods.updateLastSeen = function() {
+  this.lastSeen = new Date();
+  this.isOnline = false;
+  return this.save();
+};
+
+// Mark user as online
+userSchema.methods.markOnline = function() {
+  this.isOnline = true;
+  this.lastSeen = new Date();
+  return this.save();
+};
 
 module.exports = mongoose.model('User', userSchema);

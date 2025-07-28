@@ -45,7 +45,7 @@ exports.createAlbum = async (req, res) => {
     }
 
     const album = new Album({
-      user: req.user?.id, // Use req.user.id as set by the auth middleware
+      user: req.userId, // Use req.userId as set by the auth middleware
       name,
       media
     });
@@ -56,6 +56,13 @@ exports.createAlbum = async (req, res) => {
     res.status(201).json(album);
   } catch (err) {
     console.error('Error creating album:', err);
+    console.error('Error details:', {
+      message: err.message,
+      stack: err.stack,
+      userId: req.userId,
+      name: req.body.name,
+      mediaCount: media.length
+    });
     res.status(500).json({ message: 'Error creating album', error: err.message });
   }
 };
@@ -124,7 +131,9 @@ exports.deleteAlbum = async (req, res) => {
       });
     }
     await album.deleteOne();
-    res.json({ message: 'Album deleted' });
+    res.json({ 
+      message: 'Album deleted'
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error deleting album', error: err.message });
   }
@@ -173,7 +182,18 @@ exports.toggleLike = async (req, res) => {
       album.likes.push(userId);
     }
     await album.save();
-    res.json({ likes: album.likes, liked: likeIndex === -1 });
+    
+    // Populate user info for response
+    await album.populate('user', 'name avatar');
+    await album.populate('comments.user', 'name avatar');
+    await album.populate('savedBy', 'name avatar');
+    await album.populate('reactions.user', 'name avatar');
+    
+    res.json({ 
+      album: album,
+      likes: album.likes, 
+      liked: likeIndex === -1 
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error toggling like', error: err.message });
   }
@@ -192,7 +212,18 @@ exports.shareAlbum = async (req, res) => {
       album.shares.push(userId);
     }
     await album.save();
-    res.json({ shares: album.shares, shared: shareIndex === -1 });
+    
+    // Populate user info for response
+    await album.populate('user', 'name avatar');
+    await album.populate('comments.user', 'name avatar');
+    await album.populate('savedBy', 'name avatar');
+    await album.populate('reactions.user', 'name avatar');
+    
+    res.json({ 
+      album: album,
+      shares: album.shares, 
+      shared: shareIndex === -1 
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error sharing album', error: err.message });
   }
@@ -212,9 +243,19 @@ exports.addComment = async (req, res) => {
       text: text.trim()
     });
     await album.save();
+    
+    // Populate user info for response
+    await album.populate('user', 'name avatar');
     await album.populate('comments.user', 'name avatar');
+    await album.populate('savedBy', 'name avatar');
+    await album.populate('reactions.user', 'name avatar');
+    
     const newComment = album.comments[album.comments.length - 1];
-    res.json({ comment: newComment, message: 'Comment added successfully' });
+    res.json({ 
+      album: album,
+      comment: newComment, 
+      message: 'Comment added successfully' 
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error adding comment', error: err.message });
   }
@@ -257,7 +298,18 @@ exports.toggleSave = async (req, res) => {
     }
     
     await album.save();
-    res.json({ savedBy: album.savedBy, saved: saveIndex === -1 });
+    
+    // Populate user info for response
+    await album.populate('user', 'name avatar');
+    await album.populate('comments.user', 'name avatar');
+    await album.populate('savedBy', 'name avatar');
+    await album.populate('reactions.user', 'name avatar');
+    
+    res.json({ 
+      album: album,
+      savedBy: album.savedBy, 
+      saved: saveIndex === -1 
+    });
   } catch (err) {
     res.status(500).json({ message: 'Error toggling save', error: err.message });
   }
@@ -348,5 +400,82 @@ exports.getMostEngagedAlbum = async (req, res) => {
     res.json(mostEngaged.album);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Add view to album
+exports.addView = async (req, res) => {
+  try {
+    const album = await Album.findById(req.params.id);
+    if (!album) return res.status(404).json({ message: 'Album not found' });
+    
+    const userId = req.userId;
+    
+    // Only add view if user hasn't viewed this album before
+    if (!album.views.includes(userId)) {
+      album.views.push(userId);
+      await album.save();
+    }
+    
+    res.json({ views: album.views, viewCount: album.views.length });
+  } catch (err) {
+    res.status(500).json({ message: 'Error adding view', error: err.message });
+  }
+};
+
+// Add reaction to album
+exports.addReaction = async (req, res) => {
+  try {
+    const { reactionType } = req.body;
+    const albumId = req.params.id;
+    const userId = req.userId;
+
+    if (!reactionType || !['like', 'love', 'haha', 'wow', 'sad', 'angry'].includes(reactionType)) {
+      return res.status(400).json({ message: 'Invalid reaction type' });
+    }
+
+    const album = await Album.findById(albumId);
+    if (!album) {
+      return res.status(404).json({ message: 'Album not found' });
+    }
+
+    // Check if user already has a reaction
+    const existingReactionIndex = album.reactions.findIndex(
+      reaction => reaction.user.toString() === userId.toString()
+    );
+
+    if (existingReactionIndex !== -1) {
+      const existingReaction = album.reactions[existingReactionIndex];
+      
+      // If same reaction type, remove it (toggle off)
+      if (existingReaction.type === reactionType) {
+        album.reactions.splice(existingReactionIndex, 1);
+      } else {
+        // If different reaction type, update it
+        existingReaction.type = reactionType;
+      }
+    } else {
+      // Add new reaction
+      album.reactions.push({
+        user: userId,
+        type: reactionType,
+        createdAt: new Date()
+      });
+    }
+
+    await album.save();
+    
+    // Populate user info for response
+    await album.populate('user', 'name avatar');
+    await album.populate('reactions.user', 'name avatar');
+
+    res.json({
+      message: 'Reaction updated successfully',
+      album: album,
+      reactionCount: album.reactions.length
+    });
+  } catch (err) {
+    console.error('Error adding reaction:', err);
+    res.status(500).json({ message: 'Error adding reaction', error: err.message });
   }
 };

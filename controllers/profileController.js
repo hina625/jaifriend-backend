@@ -1,6 +1,7 @@
 const User = require('../models/user');
 const Post = require('../models/post');
-const Group = require('../models/group'); // You need to create this model if not present
+const Group = require('../models/group');
+const Album = require('../models/album');
 
 // Get logged-in user's profile with posts
 exports.getMyProfile = async (req, res) => {
@@ -20,8 +21,8 @@ exports.getMyProfile = async (req, res) => {
           select: 'name avatar'
         }
       })
-      .populate('following', 'name avatar')
-      .populate('followers', 'name avatar')
+      .populate('following', 'name avatar username')
+      .populate('followers', 'name avatar username')
       .select('-password');
     
     if (!user) {
@@ -30,12 +31,31 @@ exports.getMyProfile = async (req, res) => {
 
     // Calculate profile completion
     const completionItems = [
-      { id: 'avatar', title: 'Add your profile picture', completed: !!user.avatar },
-      { id: 'name', title: 'Add your name', completed: !!user.name },
-      { id: 'workplace', title: 'Add your workplace', completed: !!user.workplace },
-      { id: 'country', title: 'Add your country', completed: !!user.country },
-      { id: 'address', title: 'Add your address', completed: !!user.address }
+      { id: 'avatar', title: 'Add your profile picture', completed: !!user.avatar, icon: '📷' },
+      { id: 'name', title: 'Add your name', completed: !!user.name, icon: '👤' },
+      { id: 'workplace', title: 'Add your workplace', completed: !!user.workplace, icon: '💼' },
+      { id: 'country', title: 'Add your country', completed: !!user.country, icon: '🌍' },
+      { id: 'address', title: 'Add your address', completed: !!user.address, icon: '📍' },
+      { id: 'bio', title: 'Add your bio', completed: !!user.bio, icon: '📝' },
+      { id: 'phone', title: 'Add your phone', completed: !!user.phone, icon: '📱' },
+      { id: 'dateOfBirth', title: 'Add your date of birth', completed: !!user.dateOfBirth, icon: '🎂' }
     ];
+
+    const completedCount = completionItems.filter(item => item.completed).length;
+    const totalCount = completionItems.length;
+    const completionPercentage = Math.round((completedCount / totalCount) * 100);
+
+    // Get user's albums count
+    const albumsCount = await Album.countDocuments({ user: userId });
+
+    // Get user's posts count by type
+    const postsWithMedia = await Post.find({ author: userId });
+    const photosCount = postsWithMedia.filter(post => 
+      post.media && post.media.some(media => media.type === 'image')
+    ).length;
+    const videosCount = postsWithMedia.filter(post => 
+      post.media && post.media.some(media => media.type === 'video')
+    ).length;
 
     const profileData = {
       id: user._id,
@@ -48,12 +68,23 @@ exports.getMyProfile = async (req, res) => {
       address: user.address,
       gender: user.gender,
       bio: user.bio,
+      status: user.status,
       location: user.location,
+      website: user.website,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
       following: user.following?.length || 0,
       followers: user.followers?.length || 0,
       posts: user.posts?.length || 0,
+      albums: albumsCount,
+      photos: photosCount,
+      videos: videosCount,
       isOnline: user.isOnline || false,
+      lastSeen: user.lastSeen,
+      isPrivate: user.isPrivate || false,
+      isVerified: user.isVerified || false,
       completionItems,
+      completionPercentage,
       // Include actual posts data
       userPosts: user.posts || [],
       followingList: user.following || [],
@@ -85,8 +116,8 @@ exports.getUserProfile = async (req, res) => {
           select: 'name avatar'
         }
       })
-      .populate('following', 'name avatar')
-      .populate('followers', 'name avatar')
+      .populate('following', 'name avatar username')
+      .populate('followers', 'name avatar username')
       .select('-password');
     
     if (!user) {
@@ -100,6 +131,18 @@ exports.getUserProfile = async (req, res) => {
       isFollowing = currentUser?.following?.includes(id) || false;
     }
 
+    // Get user's albums count
+    const albumsCount = await Album.countDocuments({ user: id });
+
+    // Get user's posts count by type
+    const postsWithMedia = await Post.find({ author: id });
+    const photosCount = postsWithMedia.filter(post => 
+      post.media && post.media.some(media => media.type === 'image')
+    ).length;
+    const videosCount = postsWithMedia.filter(post => 
+      post.media && post.media.some(media => media.type === 'video')
+    ).length;
+
     const profileData = {
       id: user._id,
       name: user.name || user.fullName || 'User',
@@ -111,11 +154,21 @@ exports.getUserProfile = async (req, res) => {
       address: user.address,
       gender: user.gender,
       bio: user.bio,
+      status: user.status,
       location: user.location,
+      website: user.website,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
       following: user.following?.length || 0,
       followers: user.followers?.length || 0,
       posts: user.posts?.length || 0,
+      albums: albumsCount,
+      photos: photosCount,
+      videos: videosCount,
       isOnline: user.isOnline || false,
+      lastSeen: user.lastSeen,
+      isPrivate: user.isPrivate || false,
+      isVerified: user.isVerified || false,
       isFollowing,
       userPosts: user.posts || [],
       followingList: user.following || [],
@@ -133,7 +186,19 @@ exports.getUserProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { name, workplace, country, address, gender, bio, location } = req.body;
+    const { 
+      name, 
+      workplace, 
+      country, 
+      address, 
+      gender, 
+      bio, 
+      status,
+      location, 
+      website,
+      phone,
+      dateOfBirth 
+    } = req.body;
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -146,7 +211,11 @@ exports.updateProfile = async (req, res) => {
     if (address !== undefined) updateData.address = address;
     if (gender) updateData.gender = gender;
     if (bio !== undefined) updateData.bio = bio;
+    if (status !== undefined) updateData.status = status;
     if (location !== undefined) updateData.location = location;
+    if (website !== undefined) updateData.website = website;
+    if (phone !== undefined) updateData.phone = phone;
+    if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
 
     const user = await User.findByIdAndUpdate(
       userId,
@@ -227,6 +296,33 @@ exports.updateCoverPhoto = async (req, res) => {
   }
 };
 
+// Update status
+exports.updateStatus = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { status } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { status },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'Status updated successfully', status: user.status });
+  } catch (error) {
+    console.error('Error updating status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Follow/Unfollow user
 exports.followUser = async (req, res) => {
   try {
@@ -262,7 +358,7 @@ exports.followUser = async (req, res) => {
       await User.findByIdAndUpdate(targetUserId, {
         $pull: { followers: currentUserId }
       });
-      res.json({ message: 'Unfollowed successfully', following: false });
+      res.json({ message: 'Unfollowed successfully', following: false, currentUserId });
     } else {
       // Follow
       await User.findByIdAndUpdate(currentUserId, {
@@ -271,7 +367,7 @@ exports.followUser = async (req, res) => {
       await User.findByIdAndUpdate(targetUserId, {
         $addToSet: { followers: currentUserId }
       });
-      res.json({ message: 'Followed successfully', following: true });
+      res.json({ message: 'Followed successfully', following: true, currentUserId });
     }
   } catch (error) {
     console.error('Error following/unfollowing user:', error);
@@ -289,12 +385,102 @@ exports.getUserPosts = async (req, res) => {
     }
 
     const posts = await Post.find({ author: userId })
-      .populate('author', 'name avatar')
+      .populate('author', 'name avatar username')
       .sort({ createdAt: -1 });
 
     res.json(posts);
   } catch (error) {
     console.error('Error getting user posts:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get user's albums
+exports.getUserAlbums = async (req, res) => {
+  try {
+    const userId = req.params.id || req.user?.id;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const albums = await Album.find({ user: userId })
+      .populate('user', 'name avatar username')
+      .sort({ createdAt: -1 });
+
+    res.json(albums);
+  } catch (error) {
+    console.error('Error getting user albums:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get user's photos (posts with images)
+exports.getUserPhotos = async (req, res) => {
+  try {
+    const userId = req.params.id || req.user?.id;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const posts = await Post.find({ 
+      author: userId,
+      'media.type': 'image'
+    })
+      .populate('author', 'name avatar username')
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (error) {
+    console.error('Error getting user photos:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get user's videos (posts with videos)
+exports.getUserVideos = async (req, res) => {
+  try {
+    const userId = req.params.id || req.user?.id;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const posts = await Post.find({ 
+      author: userId,
+      'media.type': 'video'
+    })
+      .populate('author', 'name avatar username')
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (error) {
+    console.error('Error getting user videos:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get user's saved posts
+exports.getUserSavedPosts = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const user = await User.findById(userId).populate({
+      path: 'savedPosts',
+      populate: {
+        path: 'author',
+        select: 'name avatar username'
+      }
+    });
+
+    res.json(user.savedPosts || []);
+  } catch (error) {
+    console.error('Error getting user saved posts:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -342,11 +528,14 @@ exports.getProfileCompletion = async (req, res) => {
     }
 
     const completionItems = [
-      { id: 'avatar', title: 'Add your profile picture', completed: !!user.avatar },
-      { id: 'name', title: 'Add your name', completed: !!user.name },
-      { id: 'workplace', title: 'Add your workplace', completed: !!user.workplace },
-      { id: 'country', title: 'Add your country', completed: !!user.country },
-      { id: 'address', title: 'Add your address', completed: !!user.address }
+      { id: 'avatar', title: 'Add your profile picture', completed: !!user.avatar, icon: '📷' },
+      { id: 'name', title: 'Add your name', completed: !!user.name, icon: '👤' },
+      { id: 'workplace', title: 'Add your workplace', completed: !!user.workplace, icon: '💼' },
+      { id: 'country', title: 'Add your country', completed: !!user.country, icon: '🌍' },
+      { id: 'address', title: 'Add your address', completed: !!user.address, icon: '📍' },
+      { id: 'bio', title: 'Add your bio', completed: !!user.bio, icon: '📝' },
+      { id: 'phone', title: 'Add your phone', completed: !!user.phone, icon: '📱' },
+      { id: 'dateOfBirth', title: 'Add your date of birth', completed: !!user.dateOfBirth, icon: '🎂' }
     ];
 
     const completedCount = completionItems.filter(item => item.completed).length;
@@ -374,7 +563,7 @@ exports.getFeed = async (req, res) => {
     const followingIds = user.following || [];
     const ids = [userId, ...followingIds];
     const posts = await Post.find({ author: { $in: ids } })
-      .populate('author', 'name avatar')
+      .populate('author', 'name avatar username')
       .sort({ createdAt: -1 });
     res.json(posts);
   } catch (error) {
@@ -448,10 +637,89 @@ exports.getLikedPosts = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'User not authenticated' });
-    const user = await User.findById(userId).populate({ path: 'likedPosts', populate: { path: 'author', select: 'name avatar' } });
+    const user = await User.findById(userId).populate({ path: 'likedPosts', populate: { path: 'author', select: 'name avatar username' } });
     res.json(user.likedPosts);
   } catch (error) {
     console.error('Error getting liked posts:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Block/Unblock user
+exports.blockUser = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id;
+    const { targetUserId } = req.body;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'Target user ID is required' });
+    }
+
+    if (currentUserId === targetUserId) {
+      return res.status(400).json({ error: 'Cannot block yourself' });
+    }
+
+    const currentUser = await User.findById(currentUserId);
+    const targetUser = await User.findById(targetUserId);
+
+    if (!currentUser || !targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isBlocked = currentUser.blockedUsers?.includes(targetUserId) || false;
+
+    if (isBlocked) {
+      // Unblock
+      await User.findByIdAndUpdate(currentUserId, {
+        $pull: { blockedUsers: targetUserId }
+      });
+      res.json({ message: 'User unblocked successfully', isBlocked: false });
+    } else {
+      // Block
+      await User.findByIdAndUpdate(currentUserId, {
+        $addToSet: { blockedUsers: targetUserId }
+      });
+      res.json({ message: 'User blocked successfully', isBlocked: true });
+    }
+  } catch (error) {
+    console.error('Error blocking/unblocking user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get user's friends (mutual followers)
+exports.getFriends = async (req, res) => {
+  try {
+    const userId = req.params.id || req.user?.id;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const user = await User.findById(userId)
+      .populate('following', 'name avatar username')
+      .populate('followers', 'name avatar username');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Find mutual followers (friends)
+    const followingIds = user.following.map(f => f._id.toString());
+    const followersIds = user.followers.map(f => f._id.toString());
+    const friendsIds = followingIds.filter(id => followersIds.includes(id));
+
+    const friends = user.following.filter(following => 
+      friendsIds.includes(following._id.toString())
+    );
+
+    res.json(friends);
+  } catch (error) {
+    console.error('Error getting friends:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }; 

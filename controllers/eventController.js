@@ -1,75 +1,582 @@
 const Event = require('../models/event');
+const User = require('../models/user');
+const path = require('path');
+const fs = require('fs');
 
+// Create event
 exports.createEvent = async (req, res) => {
   try {
-    const {
-      eventName,
-      eventDescription,
-      location,
-      startDate,
-      startTime,
-      endDate,
-      endTime
-    } = req.body;
-    const image = req.file ? req.file.filename : null;
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (!eventName || !eventDescription || !location || !startDate || !startTime || !endDate || !endTime) {
-      return res.status(400).json({ error: 'All fields are required.' });
+    let coverImage = null;
+    if (req.file) {
+      coverImage = `/uploads/${req.file.filename}`;
     }
 
     const event = new Event({
-      eventName,
-      eventDescription,
-      location,
-      image,
-      startDate,
-      startTime,
-      endDate,
-      endTime
+      title: req.body.title,
+      description: req.body.description,
+      organizer: req.userId,
+      group: req.body.groupId,
+      coverImage: coverImage,
+      startDate: req.body.startDate,
+      endDate: req.body.endDate,
+      location: req.body.location ? JSON.parse(req.body.location) : null,
+      category: req.body.category || 'general',
+      tags: req.body.tags ? JSON.parse(req.body.tags) : [],
+      privacy: req.body.privacy || 'public'
     });
 
     await event.save();
-
-    // Send image URL in response
-    const imageUrl = image ? `${req.protocol}://${req.get('host')}/uploads/${image}` : null;
-    res.status(201).json({ ...event.toObject(), imageUrl });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    await event.populate('organizer', 'name username avatar');
+    
+    res.status(201).json(event);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
+// Get events
 exports.getEvents = async (req, res) => {
   try {
-    const events = await Event.find().sort({ createdAt: -1 });
-    const eventsWithImageUrl = events.map(event => ({
-      ...event.toObject(),
-      imageUrl: event.image ? `${req.protocol}://${req.get('host')}/uploads/${event.image}` : null
-    }));
-    res.json(eventsWithImageUrl);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const events = await Event.find({ isActive: true })
+      .populate('organizer', 'name username avatar')
+      .populate('group', 'name avatar')
+      .sort({ startDate: 1 });
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
-exports.deleteEvent = async (req, res) => {
+// Get upcoming events
+exports.getUpcomingEvents = async (req, res) => {
   try {
-    const event = await Event.findByIdAndDelete(req.params.id);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    res.json({ message: 'Event deleted' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const events = await Event.getUpcomingEvents();
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
+// Search events
+exports.searchEvents = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ error: 'Search query required' });
+    
+    const events = await Event.searchEvents(q, req.userId);
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event by ID
+exports.getEventById = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId)
+      .populate('organizer', 'name username avatar')
+      .populate('group', 'name avatar')
+      .populate('attendees.user', 'name username avatar');
+    
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (!event.canView(req.userId)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update event
 exports.updateEvent = async (req, res) => {
   try {
-    const update = req.body;
-    if (req.file) update.image = req.file.filename;
-    const event = await Event.findByIdAndUpdate(req.params.id, update, { new: true });
+    const event = await Event.findById(req.params.eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-    const imageUrl = event.image ? `${req.protocol}://${req.get('host')}/uploads/${event.image}` : null;
-    res.json({ ...event.toObject(), imageUrl });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    if (req.file) {
+      // Delete old cover image
+      if (event.coverImage && event.coverImage.startsWith('/uploads/')) {
+        const oldPath = path.join(__dirname, '..', event.coverImage);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+      event.coverImage = `/uploads/${req.file.filename}`;
+    }
+    
+    Object.assign(event, req.body);
+    await event.save();
+    
+    res.json(event);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Delete event
+exports.deleteEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    await event.deleteOne();
+    res.json({ message: 'Event deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Attend event
+exports.attendEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    await event.addAttendee(req.userId, 'going');
+    res.json({ message: 'Event attendance updated' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Maybe attend event
+exports.maybeAttendEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    await event.addAttendee(req.userId, 'maybe');
+    res.json({ message: 'Event attendance updated' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Decline event
+exports.declineEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    await event.addAttendee(req.userId, 'not_going');
+    res.json({ message: 'Event attendance updated' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Remove attendance
+exports.removeAttendance = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    await event.removeAttendee(req.userId);
+    res.json({ message: 'Attendance removed' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Invite user to event
+exports.inviteUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    await event.addAttendee(userId, 'invited', req.userId);
+    res.json({ message: 'User invited to event' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Invite multiple users
+exports.inviteMultipleUsers = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    for (const userId of userIds) {
+      await event.addAttendee(userId, 'invited', req.userId);
+    }
+    
+    res.json({ message: 'Users invited to event' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event invitations
+exports.getEventInvitations = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    const invitations = event.attendees.filter(a => a.status === 'invited');
+    res.json(invitations);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Accept invitation
+exports.acceptInvitation = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    await event.updateAttendeeStatus(req.userId, 'going');
+    res.json({ message: 'Invitation accepted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Decline invitation
+exports.declineInvitation = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    await event.updateAttendeeStatus(req.userId, 'not_going');
+    res.json({ message: 'Invitation declined' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Add ticket
+exports.addTicket = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    await event.addTicket(req.body);
+    res.json({ message: 'Ticket added' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update ticket
+exports.updateTicket = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    await event.updateTicket(req.params.ticketId, req.body);
+    res.json({ message: 'Ticket updated' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Delete ticket
+exports.deleteTicket = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    event.tickets = event.tickets.filter(t => t._id.toString() !== req.params.ticketId);
+    await event.save();
+    res.json({ message: 'Ticket deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Purchase ticket
+exports.purchaseTicket = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    await event.purchaseTicket(req.params.ticketId, req.userId);
+    res.json({ message: 'Ticket purchased' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event tickets
+exports.getEventTickets = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    res.json(event.tickets);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event posts
+exports.getEventPosts = async (req, res) => {
+  try {
+    // Placeholder - implement when post model supports events
+    res.json([]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Create event post
+exports.createEventPost = async (req, res) => {
+  try {
+    // Placeholder - implement when post model supports events
+    res.status(501).json({ error: 'Not implemented yet' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event photos
+exports.getEventPhotos = async (req, res) => {
+  try {
+    // Placeholder - implement when photo model is created
+    res.json([]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Upload event photos
+exports.uploadEventPhotos = async (req, res) => {
+  try {
+    // Placeholder - implement when photo model is created
+    res.status(501).json({ error: 'Not implemented yet' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event attendees
+exports.getEventAttendees = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId)
+      .populate('attendees.user', 'name username avatar');
+    
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    res.json(event.attendees);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get going attendees
+exports.getGoingAttendees = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId)
+      .populate('attendees.user', 'name username avatar');
+    
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    const goingAttendees = event.attendees.filter(a => a.status === 'going');
+    res.json(goingAttendees);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get maybe attendees
+exports.getMaybeAttendees = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId)
+      .populate('attendees.user', 'name username avatar');
+    
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    const maybeAttendees = event.attendees.filter(a => a.status === 'maybe');
+    res.json(maybeAttendees);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get not going attendees
+exports.getNotGoingAttendees = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId)
+      .populate('attendees.user', 'name username avatar');
+    
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    const notGoingAttendees = event.attendees.filter(a => a.status === 'not_going');
+    res.json(notGoingAttendees);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Cancel event
+exports.cancelEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    event.isCancelled = true;
+    event.cancellationReason = req.body.reason;
+    await event.save();
+    
+    res.json({ message: 'Event cancelled' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Feature event
+exports.featureEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    event.isFeatured = true;
+    await event.save();
+    
+    res.json({ message: 'Event featured' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Unfeature event
+exports.unfeatureEvent = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    event.isFeatured = false;
+    await event.save();
+    
+    res.json({ message: 'Event unfeatured' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event stats
+exports.getEventStats = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    
+    if (event.organizer.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    res.json(event.stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get event categories
+exports.getEventCategories = async (req, res) => {
+  try {
+    const categories = [
+      'business', 'education', 'entertainment', 'health', 
+      'sports', 'technology', 'travel', 'social', 'other'
+    ];
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get events by category
+exports.getEventsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+    const events = await Event.find({ 
+      category, 
+      isActive: true, 
+      isCancelled: false 
+    })
+    .populate('organizer', 'name username avatar')
+    .sort({ startDate: 1 });
+    
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get recommended events
+exports.getRecommendedEvents = async (req, res) => {
+  try {
+    // Placeholder - implement recommendation algorithm
+    const events = await Event.find({ 
+      isActive: true, 
+      isCancelled: false,
+      startDate: { $gte: new Date() }
+    })
+    .populate('organizer', 'name username avatar')
+    .limit(10)
+    .sort({ startDate: 1 });
+    
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get nearby events
+exports.getNearbyEvents = async (req, res) => {
+  try {
+    // Placeholder - implement location-based search
+    const events = await Event.find({ 
+      isActive: true, 
+      isCancelled: false,
+      'location.coordinates': { $exists: true }
+    })
+    .populate('organizer', 'name username avatar')
+    .limit(10)
+    .sort({ startDate: 1 });
+    
+    res.json(events);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 }; 
