@@ -15,6 +15,14 @@ const upgradeRoutes = require('./routes/upgradeRoutes');
 const fileMonitorRoutes = require('./routes/fileMonitorRoutes');
 const movieRoutes = require('./routes/movieRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const addressRoutes = require('./routes/addressRoutes');
+const userImageRoutes = require('./routes/userImageRoutes');
+const dataExportRoutes = require('./routes/dataExportRoutes');
+const invitationRoutes = require('./routes/invitationRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const passwordRoutes = require('./routes/passwordRoutes');
+const privacyRoutes = require('./routes/privacyRoutes');
+const profileSettingsRoutes = require('./routes/profileSettingsRoutes');
 
 const session = require('express-session');
 const passport = require('passport');
@@ -31,7 +39,8 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 
 // IMPORTANT: Middleware for parsing JSON
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const cors = require('cors');
 app.use(cors({
@@ -62,6 +71,14 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/upgrade', upgradeRoutes);
 app.use('/api/filemonitor', fileMonitorRoutes);
 app.use('/api/movies', movieRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/userimages', userImageRoutes);
+app.use('/api/dataexports', dataExportRoutes);
+app.use('/api/invitations', invitationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/settings/password', passwordRoutes);
+app.use('/api/settings/privacy', privacyRoutes);
+app.use('/api/settings/profile', profileSettingsRoutes);
 
 app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 

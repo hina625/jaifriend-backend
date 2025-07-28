@@ -1,37 +1,38 @@
 const express = require('express');
 const router = express.Router();
-const notificationController = require('../controllers/notificationController');
-const auth = require('../middlewares/authMiddleware');
+const authMiddleware = require('../middlewares/authMiddleware');
+const {
+  getNotificationSettings,
+  updateNotificationSettings,
+  getUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  getNotificationStats
+} = require('../controllers/notificationController');
 
-// Get all notifications
-router.get('/', auth, notificationController.getNotifications);
+// All routes require authentication
+router.use(authMiddleware);
 
-// Get unread count
-router.get('/unread-count', auth, notificationController.getUnreadCount);
+// Get user's notification settings
+router.get('/settings', getNotificationSettings);
+
+// Update user's notification settings
+router.put('/settings', updateNotificationSettings);
+
+// Get user's notifications
+router.get('/', getUserNotifications);
 
 // Get notification statistics
-router.get('/stats', auth, notificationController.getNotificationStats);
+router.get('/stats', getNotificationStats);
 
-// Mark multiple notifications as read
-router.put('/mark-read', auth, notificationController.markMultipleAsRead);
+// Mark notification as read
+router.patch('/:notificationId/read', markNotificationAsRead);
 
 // Mark all notifications as read
-router.put('/mark-all-read', auth, notificationController.markAllAsRead);
+router.patch('/read-all', markAllNotificationsAsRead);
 
-// Delete multiple notifications
-router.delete('/delete-multiple', auth, notificationController.deleteMultipleNotifications);
-
-// Clear all notifications
-router.delete('/clear-all', auth, notificationController.clearAllNotifications);
-
-// Get notification settings
-router.get('/settings', auth, notificationController.getNotificationSettings);
-
-// Update notification settings
-router.put('/settings', auth, notificationController.updateNotificationSettings);
-
-// Parameterized routes (must come after specific routes)
-router.put('/:notificationId/read', auth, notificationController.markAsRead);
-router.delete('/:notificationId', auth, notificationController.deleteNotification);
+// Delete notification
+router.delete('/:notificationId', deleteNotification);
 
 module.exports = router; 

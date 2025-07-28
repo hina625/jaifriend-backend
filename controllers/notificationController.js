@@ -1,265 +1,332 @@
 const Notification = require('../models/notification');
 const User = require('../models/user');
-const Post = require('../models/post');
 
-// Get all notifications for current user
-exports.getNotifications = async (req, res) => {
+// Get user's notification settings
+const getNotificationSettings = async (req, res) => {
   try {
-    const { page = 1, limit = 20, type } = req.query;
-    const userId = req.userId;
+    const userId = req.user.id;
+
+    // Get user's notification settings from user document
+    const user = await User.findById(userId).select('notificationSettings');
     
-    const query = {
-      recipient: userId,
-      isDeleted: false
-    };
-    
-    if (type) {
-      query.type = type;
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
-    
-    const notifications = await Notification.find(query)
-      .populate('sender', 'name username avatar')
-      .populate('post', 'content media')
-      .populate('group', 'name avatar')
-      .populate('event', 'title description')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-    
-    const total = await Notification.countDocuments(query);
-    
+
+    // Return default settings if none exist
+    const defaultSettings = {
+      someonelikedMyPosts: true,
+      someoneCommentedOnMyPosts: true,
+      someoneSharedOnMyPosts: true,
+      someoneFollowedMe: true,
+      someoneLikedMyPages: true,
+      someoneVisitedMyProfile: true,
+      someoneMentionedMe: true,
+      someoneJoinedMyGroups: true,
+      someoneAcceptedMyFriendRequest: true,
+      someonePostedOnMyTimeline: true
+    };
+
+    const settings = user.notificationSettings || defaultSettings;
+
     res.json({
-      notifications,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
+      success: true,
+      data: settings
     });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching notification settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notification settings'
+    });
   }
 };
 
-// Get unread notifications count
-exports.getUnreadCount = async (req, res) => {
+// Update user's notification settings
+const updateNotificationSettings = async (req, res) => {
   try {
-    const userId = req.userId;
-    const count = await Notification.getUnreadCount(userId);
-    res.json({ count });
+    const userId = req.user.id;
+    const settings = req.body;
+
+    // Validate settings
+    const validSettings = [
+      'someonelikedMyPosts',
+      'someoneCommentedOnMyPosts',
+      'someoneSharedOnMyPosts',
+      'someoneFollowedMe',
+      'someoneLikedMyPages',
+      'someoneVisitedMyProfile',
+      'someoneMentionedMe',
+      'someoneJoinedMyGroups',
+      'someoneAcceptedMyFriendRequest',
+      'someonePostedOnMyTimeline'
+    ];
+
+    const filteredSettings = {};
+    validSettings.forEach(setting => {
+      if (typeof settings[setting] === 'boolean') {
+        filteredSettings[setting] = settings[setting];
+      }
+    });
+
+    // Update user's notification settings
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { notificationSettings: filteredSettings },
+      { new: true }
+    ).select('notificationSettings');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Notification settings updated successfully',
+      data: user.notificationSettings
+    });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error updating notification settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update notification settings'
+    });
+  }
+};
+
+// Get user's notifications
+const getUserNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const notifications = await Notification.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('relatedUserId', 'name username avatar')
+      .populate('relatedPostId', 'content')
+      .populate('relatedGroupId', 'name')
+      .populate('relatedPageId', 'name')
+      .select('-__v');
+
+    const total = await Notification.countDocuments({ userId });
+    const unreadCount = await Notification.countDocuments({ 
+      userId, 
+      isRead: false 
+    });
+
+    res.json({
+      success: true,
+      data: {
+        notifications,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        },
+        unreadCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notifications'
+    });
   }
 };
 
 // Mark notification as read
-exports.markAsRead = async (req, res) => {
+const markNotificationAsRead = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { notificationId } = req.params;
-    const userId = req.userId;
-    
-    const notification = await Notification.findOne({
-      _id: notificationId,
-      recipient: userId
-    });
-    
-    if (!notification) {
-      return res.status(404).json({ error: 'Notification not found' });
-    }
-    
-    await notification.markAsRead();
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
 
-// Mark multiple notifications as read
-exports.markMultipleAsRead = async (req, res) => {
-  try {
-    const { notificationIds } = req.body;
-    const userId = req.userId;
-    
-    await Notification.markAsRead(userId, notificationIds);
-    res.json({ success: true });
+    const notification = await Notification.findOneAndUpdate(
+      {
+        _id: notificationId,
+        userId
+      },
+      {
+        isRead: true
+      },
+      { new: true }
+    );
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Notification marked as read',
+      data: notification
+    });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark notification as read'
+    });
   }
 };
 
 // Mark all notifications as read
-exports.markAllAsRead = async (req, res) => {
+const markAllNotificationsAsRead = async (req, res) => {
   try {
-    const userId = req.userId;
-    await Notification.markAllAsRead(userId);
-    res.json({ success: true });
+    const userId = req.user.id;
+
+    const result = await Notification.updateMany(
+      {
+        userId,
+        isRead: false
+      },
+      {
+        isRead: true
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'All notifications marked as read',
+      data: {
+        updatedCount: result.modifiedCount
+      }
+    });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark notifications as read'
+    });
   }
 };
 
 // Delete notification
-exports.deleteNotification = async (req, res) => {
+const deleteNotification = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { notificationId } = req.params;
-    const userId = req.userId;
-    
-    const notification = await Notification.findOne({
+
+    const notification = await Notification.findOneAndDelete({
       _id: notificationId,
-      recipient: userId
+      userId
     });
-    
+
     if (!notification) {
-      return res.status(404).json({ error: 'Notification not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found'
+      });
     }
-    
-    await notification.softDelete();
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
 
-// Delete multiple notifications
-exports.deleteMultipleNotifications = async (req, res) => {
-  try {
-    const { notificationIds } = req.body;
-    const userId = req.userId;
-    
-    await Notification.updateMany(
-      {
-        _id: { $in: notificationIds },
-        recipient: userId
-      },
-      {
-        $set: { isDeleted: true }
-      }
-    );
-    
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Clear all notifications
-exports.clearAllNotifications = async (req, res) => {
-  try {
-    const userId = req.userId;
-    
-    await Notification.updateMany(
-      {
-        recipient: userId,
-        isDeleted: false
-      },
-      {
-        $set: { isDeleted: true }
-      }
-    );
-    
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Create notification (utility function for other controllers)
-exports.createNotification = async (data) => {
-  try {
-    // Check if notification already exists (to prevent duplicates)
-    const existingNotification = await Notification.findOne({
-      sender: data.sender,
-      recipient: data.recipient,
-      type: data.type,
-      post: data.post,
-      createdAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Within last 5 minutes
+    res.json({
+      success: true,
+      message: 'Notification deleted successfully'
     });
-    
-    if (existingNotification) {
-      return existingNotification;
-    }
-    
-    // Check recipient's notification settings
-    const recipient = await User.findById(data.recipient);
-    if (!recipient) return null;
-    
-    const shouldNotify = recipient.settings?.notifications?.[data.type] !== false;
-    if (!shouldNotify) return null;
-    
-    return await Notification.createNotification(data);
-  } catch (error) {
-    console.error('Error creating notification:', error);
-    return null;
-  }
-};
 
-// Get notification settings
-exports.getNotificationSettings = async (req, res) => {
-  try {
-    const userId = req.userId;
-    const user = await User.findById(userId).select('settings');
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json(user.settings?.notifications || {});
   } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Update notification settings
-exports.updateNotificationSettings = async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { notifications } = req.body;
-    
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    if (!user.settings) user.settings = {};
-    user.settings.notifications = { ...user.settings.notifications, ...notifications };
-    
-    await user.save();
-    res.json(user.settings.notifications);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error deleting notification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete notification'
+    });
   }
 };
 
 // Get notification statistics
-exports.getNotificationStats = async (req, res) => {
+const getNotificationStats = async (req, res) => {
   try {
-    const userId = req.userId;
-    
-    const stats = await Notification.aggregate([
-      {
-        $match: {
-          recipient: userId,
-          isDeleted: false
+    const userId = req.user.id;
+
+    const [totalCount, unreadCount, todayCount] = await Promise.all([
+      Notification.countDocuments({ userId }),
+      Notification.countDocuments({ userId, isRead: false }),
+      Notification.countDocuments({
+        userId,
+        createdAt: {
+          $gte: new Date(new Date().setHours(0, 0, 0, 0))
         }
-      },
+      })
+    ]);
+
+    // Get count by type
+    const typeStats = await Notification.aggregate([
+      { $match: { userId: mongoose.Types.ObjectId(userId) } },
       {
         $group: {
           _id: '$type',
-          count: { $sum: 1 },
-          unreadCount: {
-            $sum: {
-              $cond: ['$isRead', 0, 1]
-            }
-          }
+          count: { $sum: 1 }
         }
       }
     ]);
-    
-    const totalUnread = await Notification.getUnreadCount(userId);
-    
+
     res.json({
-      stats,
-      totalUnread
+      success: true,
+      data: {
+        totalCount,
+        unreadCount,
+        todayCount,
+        typeStats
+      }
     });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching notification stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch notification statistics'
+    });
   }
+};
+
+// Create notification (utility function for other controllers)
+const createNotification = async (data) => {
+  try {
+    const notification = new Notification({
+      userId: data.userId,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      relatedUserId: data.relatedUserId,
+      relatedPostId: data.relatedPostId,
+      relatedGroupId: data.relatedGroupId,
+      relatedPageId: data.relatedPageId
+    });
+
+    await notification.save();
+    return notification;
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    throw error;
+  }
+};
+
+module.exports = {
+  getNotificationSettings,
+  updateNotificationSettings,
+  getUserNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+  getNotificationStats,
+  createNotification
 }; 
