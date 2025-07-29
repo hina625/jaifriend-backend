@@ -73,12 +73,17 @@ const generateInvitation = async (req, res) => {
       })
     ]);
 
+    // Generate full invitation URL with frontend URL
+    const frontendUrl = req.frontendUrl || 'http://localhost:3000';
+    const invitationUrl = `${frontendUrl}/register?invitationCode=${invitation.invitationCode}`;
+
     res.status(201).json({
       success: true,
       message: 'Invitation link generated successfully',
       data: {
         invitationId: invitation._id,
         invitationCode: invitation.invitationCode,
+        invitationUrl: invitationUrl,
         stats: {
           availableLinks: availableCount,
           generatedLinks: generatedCount,
@@ -113,10 +118,17 @@ const getUserInvitations = async (req, res) => {
 
     const total = await Invitation.countDocuments({ userId });
 
+    // Add full invitation URLs to each invitation
+    const frontendUrl = req.frontendUrl || 'http://localhost:3000';
+    const invitationsWithUrls = invitations.map(invitation => ({
+      ...invitation.toObject(),
+      invitationUrl: `${frontendUrl}/register?invitationCode=${invitation.invitationCode}`
+    }));
+
     res.json({
       success: true,
       data: {
-        invitations,
+        invitations: invitationsWithUrls,
         pagination: {
           page,
           limit,
@@ -153,9 +165,16 @@ const getInvitationById = async (req, res) => {
       });
     }
 
+    // Add full invitation URL
+    const frontendUrl = req.frontendUrl || 'http://localhost:3000';
+    const invitationWithUrl = {
+      ...invitation.toObject(),
+      invitationUrl: `${frontendUrl}/register?invitationCode=${invitation.invitationCode}`
+    };
+
     res.json({
       success: true,
-      data: invitation
+      data: invitationWithUrl
     });
 
   } catch (error) {

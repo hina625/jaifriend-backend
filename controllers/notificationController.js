@@ -126,10 +126,46 @@ const getUserNotifications = async (req, res) => {
       isRead: false 
     });
 
+    // Add frontend URLs to notifications
+    const frontendUrl = req.frontendUrl || 'http://localhost:3000';
+    const notificationsWithUrls = notifications.map(notification => {
+      let actionUrl = null;
+      
+      // Generate action URLs based on notification type
+      switch (notification.type) {
+        case 'post_like':
+        case 'post_comment':
+        case 'post_share':
+          actionUrl = notification.relatedPostId ? 
+            `${frontendUrl}/dashboard/posts/${notification.relatedPostId._id}` : null;
+          break;
+        case 'profile_visit':
+        case 'profile_follow':
+          actionUrl = notification.relatedUserId ? 
+            `${frontendUrl}/dashboard/profile/${notification.relatedUserId._id}` : null;
+          break;
+        case 'group_join':
+          actionUrl = notification.relatedGroupId ? 
+            `${frontendUrl}/dashboard/groups/${notification.relatedGroupId._id}` : null;
+          break;
+        case 'page_like':
+          actionUrl = notification.relatedPageId ? 
+            `${frontendUrl}/dashboard/pages/${notification.relatedPageId._id}` : null;
+          break;
+        default:
+          actionUrl = `${frontendUrl}/dashboard`;
+      }
+
+      return {
+        ...notification.toObject(),
+        actionUrl
+      };
+    });
+
     res.json({
       success: true,
       data: {
-        notifications,
+        notifications: notificationsWithUrls,
         pagination: {
           page,
           limit,

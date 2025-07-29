@@ -1,53 +1,44 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
-const authRoutes = require('./routes/authRoutes');
-const postRoutes = require('./routes/postRoutes');
-const albumRoutes = require('./routes/albumRoutes');
-const videoRoutes = require('./routes/videoRoutes');
-const eventRoutes = require('./routes/eventRoutes');
-const orderRoutes = require('./routes/orderRoutes');
-const productRoutes = require('./routes/productRoutes');
-const pageRoutes = require('./routes/pageRoutes');
-const profileRoutes = require('./routes/profileRoutes');
-const userRoutes = require('./routes/userRoutes');
-const upgradeRoutes = require('./routes/upgradeRoutes');
-const fileMonitorRoutes = require('./routes/fileMonitorRoutes');
-const movieRoutes = require('./routes/movieRoutes');
-const uploadRoutes = require('./routes/uploadRoutes');
-const addressRoutes = require('./routes/addressRoutes');
-const userImageRoutes = require('./routes/userImageRoutes');
-const dataExportRoutes = require('./routes/dataExportRoutes');
-const invitationRoutes = require('./routes/invitationRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const passwordRoutes = require('./routes/passwordRoutes');
-const privacyRoutes = require('./routes/privacyRoutes');
-const profileSettingsRoutes = require('./routes/profileSettingsRoutes');
-
 const session = require('express-session');
 const passport = require('passport');
-require('./config/passport'); // Passport strategies config
+const cors = require('cors');
+const path = require('path');
 
+// Load environment variables
 dotenv.config();
 
-// Set fallback JWT_SECRET if not provided
+// Passport config
+require('./config/passport');
+
+// Initialize express app
+const app = express();
+
+// Set fallback JWT secret if not provided
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'fallback-secret-key-for-development';
   console.log('⚠️  Using fallback JWT_SECRET. Set JWT_SECRET in .env for production.');
 }
 
-const app = express();
-
-// IMPORTANT: Middleware for parsing JSON
+// Middleware to parse JSON and form data
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-const cors = require('cors');
+// CORS Configuration
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
-  origin: 'http://localhost:3000', // allow your frontend origin
-  credentials: true // if you want to allow cookies/auth headers
+  origin: [FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true,
 }));
 
+// Add frontend URL to request object
+app.use((req, res, next) => {
+  req.frontendUrl = FRONTEND_URL;
+  next();
+});
+
+// Session & Passport
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret',
   resave: false,
@@ -57,36 +48,38 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/posts', postRoutes);
-app.use('/api/albums', albumRoutes);
-app.use('/api/videos', videoRoutes);
-app.use('/api/events', eventRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/pages', pageRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/upgrade', upgradeRoutes);
-app.use('/api/filemonitor', fileMonitorRoutes);
-app.use('/api/movies', movieRoutes);
-app.use('/api/addresses', addressRoutes);
-app.use('/api/userimages', userImageRoutes);
-app.use('/api/dataexports', dataExportRoutes);
-app.use('/api/invitations', invitationRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/settings/password', passwordRoutes);
-app.use('/api/settings/privacy', privacyRoutes);
-app.use('/api/settings/profile', profileSettingsRoutes);
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/posts', require('./routes/postRoutes'));
+app.use('/api/albums', require('./routes/albumRoutes'));
+app.use('/api/videos', require('./routes/videoRoutes'));
+app.use('/api/events', require('./routes/eventRoutes'));
+app.use('/api/orders', require('./routes/orderRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/pages', require('./routes/pageRoutes'));
+app.use('/api/profile', require('./routes/profileRoutes'));
+app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/upgrade', require('./routes/upgradeRoutes'));
+app.use('/api/filemonitor', require('./routes/fileMonitorRoutes'));
+app.use('/api/movies', require('./routes/movieRoutes'));
+app.use('/api/addresses', require('./routes/addressRoutes'));
+app.use('/api/userimages', require('./routes/userImageRoutes'));
+app.use('/api/dataexports', require('./routes/dataExportRoutes'));
+app.use('/api/invitations', require('./routes/invitationRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/settings/password', require('./routes/passwordRoutes'));
+app.use('/api/settings/privacy', require('./routes/privacyRoutes'));
+app.use('/api/settings/profile', require('./routes/profileSettingsRoutes'));
 
-app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
+// Static file access
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Root route
 app.get('/', (req, res) => {
-  res.send('API is running 🚀');
+  res.send('🚀 API is running');
 });
 
-// Health check endpoint
+// Health check route
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -96,7 +89,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Error handling middleware
+// 404 route
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handling
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err.stack || err.message);
   res.status(500).json({
@@ -105,37 +103,27 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
+// Start the server
 const PORT = process.env.PORT || 5000;
-
-// Start server first, then try to connect to database
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 API available at http://localhost:${PORT}/api`);
   console.log(`🏥 Health check at http://localhost:${PORT}/api/health`);
-  
-  // Try to connect to database after server starts
+
+  // Connect to database
   if (process.env.MONGO_URI) {
-    console.log('🔄 Attempting to connect to MongoDB...');
+    console.log('🔄 Connecting to MongoDB...');
     connectDB().catch(err => {
-      console.log('⚠️  Database connection failed, but server is running');
-      console.log('💡 To fix this:');
-      console.log('   1. Install MongoDB locally, OR');
-      console.log('   2. Use MongoDB Atlas (cloud database)');
-      console.log('   3. Set MONGO_URI in your .env file');
+      console.log('⚠️  Database connection failed.');
+      console.log('💡 Make sure MONGO_URI is correct in Railway environment variables.');
     });
   } else {
-    console.log('⚠️  No MONGO_URI provided. Database features will not work.');
-    console.log('💡 Add MONGO_URI to your .env file to enable database features');
+    console.log('⚠️  No MONGO_URI provided. Skipping DB connection.');
   }
-  
-  // Start file monitoring after server starts
+
+  // Start file monitor if needed
   const fileMonitor = require('./utils/fileMonitor');
   setTimeout(() => {
     fileMonitor.startWatching();
-  }, 2000); // Start after 2 seconds to ensure everything is loaded
+  }, 2000);
 });

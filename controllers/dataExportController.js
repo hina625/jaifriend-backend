@@ -86,10 +86,18 @@ const getUserDataExports = async (req, res) => {
 
     const total = await DataExport.countDocuments({ userId });
 
+    // Add full download URLs to exports
+    const frontendUrl = req.frontendUrl || 'http://localhost:3000';
+    const exportsWithUrls = exports.map(exportItem => ({
+      ...exportItem.toObject(),
+      fullDownloadUrl: exportItem.status === 'completed' ? 
+        `${frontendUrl}${exportItem.fileUrl}` : null
+    }));
+
     res.json({
       success: true,
       data: {
-        exports,
+        exports: exportsWithUrls,
         pagination: {
           page,
           limit,
@@ -166,12 +174,15 @@ const downloadDataExport = async (req, res) => {
       });
     }
 
-    // In a real implementation, you would serve the actual file
-    // For now, we'll return the file URL
+    // Generate full download URL with frontend URL
+    const frontendUrl = req.frontendUrl || 'http://localhost:3000';
+    const fullDownloadUrl = `${frontendUrl}${dataExport.fileUrl}`;
+
     res.json({
       success: true,
       data: {
         downloadUrl: dataExport.fileUrl,
+        fullDownloadUrl: fullDownloadUrl,
         fileName: `data-export-${exportId}.json`,
         fileSize: dataExport.fileSize,
         expiresAt: dataExport.expiresAt
