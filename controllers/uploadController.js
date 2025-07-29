@@ -1,33 +1,47 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const User = require('../models/user');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '..', 'uploads');
+    let uploadPath = 'uploads/';
     
-    // Create uploads directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    // Create different folders for different types of uploads
+    if (file.fieldname === 'profilePhoto') {
+      uploadPath += 'profile-photos/';
+    } else if (file.fieldname === 'coverPhoto') {
+      uploadPath += 'cover-photos/';
+    } else if (file.fieldname === 'postMedia') {
+      uploadPath += 'post-media/';
+    } else {
+      uploadPath += 'general/';
     }
     
-    cb(null, uploadDir);
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
+    // Generate unique filename with timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
+// File filter to accept only images and videos
 const fileFilter = (req, file, cb) => {
-  // Allow images and videos
-  if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
-    cb(null, true);
+  const allowedTypes = /jpeg|jpg|png|gif|webp|mp4|avi|mov|wmv|flv|webm/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
   } else {
-    cb(new Error('Only image and video files are allowed'), false);
+    cb(new Error('Only image and video files are allowed!'));
   }
 };
 
@@ -39,42 +53,54 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
-// Upload profile picture
-exports.uploadProfilePicture = async (req, res) => {
+// Upload profile photo
+exports.uploadProfilePhoto = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const uploadSingle = upload.single('profilePhoto');
     
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+    uploadSingle(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message });
     }
 
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Validate file type
-    if (!req.file.mimetype.startsWith('image/')) {
-      return res.status(400).json({ error: 'Only image files are allowed for profile picture' });
-    }
-
-    // Update user's avatar
-    const avatarPath = `/uploads/${req.file.filename}`;
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { avatar: avatarPath },
-      { new: true }
-    ).select('-password');
+      const currentUserId = req.user?.id;
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+      
+      // Update user's profile photo in database
+      const User = require('../models/user');
+      const user = await User.findById(currentUserId);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+      
+      // Delete old profile photo if it exists and is not default
+      if (user.avatar && !user.avatar.includes('avatars/') && user.avatar !== '/avatars/1.png.png') {
+        const oldPhotoPath = path.join(__dirname, '..', user.avatar);
+        if (fs.existsSync(oldPhotoPath)) {
+          fs.unlinkSync(oldPhotoPath);
+        }
+      }
+      
+      // Update user's avatar with new photo path
+      const photoUrl = '/' + req.file.path.replace(/\\/g, '/');
+      user.avatar = photoUrl;
+      await user.save();
 
     res.json({
-      message: 'Profile picture uploaded successfully',
-      avatar: user.avatar
+        message: 'Profile photo uploaded successfully',
+        avatar: user.avatar,
+        filename: req.file.filename
+      });
     });
   } catch (error) {
-    console.error('Error uploading profile picture:', error);
+    console.error('Error uploading profile photo:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -82,36 +108,48 @@ exports.uploadProfilePicture = async (req, res) => {
 // Upload cover photo
 exports.uploadCoverPhoto = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const uploadSingle = upload.single('coverPhoto');
     
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+    uploadSingle(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message });
     }
 
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Validate file type
-    if (!req.file.mimetype.startsWith('image/')) {
-      return res.status(400).json({ error: 'Only image files are allowed for cover photo' });
-    }
-
-    // Update user's cover photo
-    const coverPhotoPath = `/uploads/${req.file.filename}`;
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { coverPhoto: coverPhotoPath },
-      { new: true }
-    ).select('-password');
+      const currentUserId = req.user?.id;
+      if (!currentUserId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+      
+      // Update user's cover photo in database
+      const User = require('../models/user');
+      const user = await User.findById(currentUserId);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+      
+      // Delete old cover photo if it exists
+      if (user.coverPhoto && user.coverPhoto !== '/covers/default-cover.jpg') {
+        const oldCoverPath = path.join(__dirname, '..', user.coverPhoto);
+        if (fs.existsSync(oldCoverPath)) {
+          fs.unlinkSync(oldCoverPath);
+        }
+      }
+      
+      // Update user's cover photo with new photo path
+      const coverUrl = '/' + req.file.path.replace(/\\/g, '/');
+      user.coverPhoto = coverUrl;
+      await user.save();
 
     res.json({
       message: 'Cover photo uploaded successfully',
-      coverPhoto: user.coverPhoto
+        coverPhoto: user.coverPhoto,
+        filename: req.file.filename
+      });
     });
   } catch (error) {
     console.error('Error uploading cover photo:', error);
@@ -122,38 +160,30 @@ exports.uploadCoverPhoto = async (req, res) => {
 // Upload post media
 exports.uploadPostMedia = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const uploadMultiple = upload.array('postMedia', 10); // Max 10 files
     
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
+    uploadMultiple(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message });
     }
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    // Validate file types
-    const validFiles = req.files.filter(file => 
-      file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')
-    );
-
-    if (validFiles.length === 0) {
-      return res.status(400).json({ error: 'No valid files uploaded' });
-    }
-
-    // Process uploaded files
-    const mediaFiles = validFiles.map(file => ({
+      const uploadedFiles = req.files.map(file => ({
       filename: file.filename,
-      originalName: file.originalname,
+        originalname: file.originalname,
+        path: '/' + file.path.replace(/\\/g, '/'),
+        size: file.size,
       mimetype: file.mimetype,
-      size: file.size,
-      path: `/uploads/${file.filename}`,
       type: file.mimetype.startsWith('image/') ? 'image' : 'video'
     }));
 
     res.json({
-      message: 'Media uploaded successfully',
-      files: mediaFiles
+        message: 'Files uploaded successfully',
+        files: uploadedFiles
+      });
     });
   } catch (error) {
     console.error('Error uploading post media:', error);
@@ -161,73 +191,28 @@ exports.uploadPostMedia = async (req, res) => {
   }
 };
 
-// Upload album media
-exports.uploadAlbumMedia = async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
-    }
-
-    // Validate file types
-    const validFiles = req.files.filter(file => 
-      file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')
-    );
-
-    if (validFiles.length === 0) {
-      return res.status(400).json({ error: 'No valid files uploaded' });
-    }
-
-    // Process uploaded files
-    const mediaFiles = validFiles.map(file => ({
-      filename: file.filename,
-      originalName: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      path: `/uploads/${file.filename}`,
-      type: file.mimetype.startsWith('image/') ? 'image' : 'video'
-    }));
-
-    res.json({
-      message: 'Album media uploaded successfully',
-      files: mediaFiles
-    });
-  } catch (error) {
-    console.error('Error uploading album media:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
 // Delete uploaded file
 exports.deleteFile = async (req, res) => {
   try {
-    const { filename } = req.params;
-    const userId = req.user?.id;
+    const { filePath } = req.body;
+    const currentUserId = req.user?.id;
     
-    if (!userId) {
+    if (!currentUserId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    if (!filename) {
-      return res.status(400).json({ error: 'Filename is required' });
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path is required' });
     }
-
-    const filePath = path.join(__dirname, '..', 'uploads', filename);
     
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found' });
+    const fullPath = path.join(__dirname, '..', filePath);
+    
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+      res.json({ message: 'File deleted successfully' });
+    } else {
+      res.status(404).json({ error: 'File not found' });
     }
-
-    // Delete file
-    fs.unlinkSync(filePath);
-
-    res.json({ message: 'File deleted successfully' });
   } catch (error) {
     console.error('Error deleting file:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -237,41 +222,38 @@ exports.deleteFile = async (req, res) => {
 // Get file info
 exports.getFileInfo = async (req, res) => {
   try {
-    const { filename } = req.params;
+    const { filePath } = req.params;
     
-    if (!filename) {
-      return res.status(400).json({ error: 'Filename is required' });
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path is required' });
     }
-
-    const filePath = path.join(__dirname, '..', 'uploads', filename);
     
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    const stats = fs.statSync(filePath);
-    const fileInfo = {
-      filename,
+    // Decode the filePath in case it contains encoded characters
+    const decodedFilePath = decodeURIComponent(filePath);
+    const fullPath = path.join(__dirname, '..', decodedFilePath);
+    
+    if (fs.existsSync(fullPath)) {
+      const stats = fs.statSync(fullPath);
+      res.json({
+        exists: true,
       size: stats.size,
       created: stats.birthtime,
-      modified: stats.mtime,
-      path: `/uploads/${filename}`
-    };
-
-    res.json(fileInfo);
+        modified: stats.mtime
+      });
+    } else {
+      res.json({ exists: false });
+    }
   } catch (error) {
     console.error('Error getting file info:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Export multer configurations
-exports.upload = upload;
-exports.uploadSingle = upload.single('file');
-exports.uploadArray = upload.array('files', 10); // Max 10 files
-exports.uploadFields = upload.fields([
-  { name: 'avatar', maxCount: 1 },
-  { name: 'coverPhoto', maxCount: 1 },
-  { name: 'media', maxCount: 10 }
-]); 
+module.exports = {
+  upload,
+  uploadProfilePhoto: exports.uploadProfilePhoto,
+  uploadCoverPhoto: exports.uploadCoverPhoto,
+  uploadPostMedia: exports.uploadPostMedia,
+  deleteFile: exports.deleteFile,
+  getFileInfo: exports.getFileInfo
+}; 

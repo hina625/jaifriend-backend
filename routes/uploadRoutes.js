@@ -3,22 +3,19 @@ const router = express.Router();
 const uploadController = require('../controllers/uploadController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
-// Upload profile picture
-router.post('/profile-picture', authMiddleware, uploadController.uploadSingle, uploadController.uploadProfilePicture);
+// Upload profile photo
+router.post('/profile-photo', authMiddleware, uploadController.uploadProfilePhoto);
 
 // Upload cover photo
-router.post('/cover-photo', authMiddleware, uploadController.uploadSingle, uploadController.uploadCoverPhoto);
+router.post('/cover-photo', authMiddleware, uploadController.uploadCoverPhoto);
 
 // Upload post media
-router.post('/post-media', authMiddleware, uploadController.uploadArray, uploadController.uploadPostMedia);
-
-// Upload album media
-router.post('/album-media', authMiddleware, uploadController.uploadArray, uploadController.uploadAlbumMedia);
+router.post('/post-media', authMiddleware, uploadController.uploadPostMedia);
 
 // Delete file
-router.delete('/file/:filename', authMiddleware, uploadController.deleteFile);
+router.delete('/file', authMiddleware, uploadController.deleteFile);
 
 // Get file info
-router.get('/file/:filename', authMiddleware, uploadController.getFileInfo);
+router.get('/file/:filePath', authMiddleware, uploadController.getFileInfo);
 
 module.exports = router; 

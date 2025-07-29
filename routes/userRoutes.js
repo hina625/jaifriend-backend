@@ -9,6 +9,24 @@ router.get('/search', authMiddleware, userController.searchUsers);
 // Get suggested users to follow - must come before parameterized routes
 router.get('/suggested', authMiddleware, userController.getSuggestedUsers);
 
+// Get current user's profile
+router.get('/profile/me', authMiddleware, userController.getMyProfile);
+
+// Update current user's profile
+router.put('/profile/update', authMiddleware, userController.updateProfile);
+
+// Update profile photo
+router.put('/profile/photo', authMiddleware, userController.updateProfilePhoto);
+
+// Update cover photo
+router.put('/profile/cover', authMiddleware, userController.updateCoverPhoto);
+
+// Get user's activity feed
+router.get('/activity', authMiddleware, userController.getUserActivity);
+
+// Delete user account
+router.delete('/account', authMiddleware, userController.deleteAccount);
+
 // Get user by ID
 router.get('/:id', authMiddleware, userController.getUserById);
 
@@ -38,5 +56,8 @@ router.get('/:userId/followers', authMiddleware, userController.getUserFollowers
 
 // Get user's following
 router.get('/:userId/following', authMiddleware, userController.getUserFollowing);
+
+// Toggle user verification (admin only)
+router.post('/:userId/verify', authMiddleware, userController.toggleVerification);
 
 module.exports = router; 
