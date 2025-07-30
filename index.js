@@ -54,7 +54,13 @@ app.use(session({
 // app.use(passport.initialize());
 // app.use(passport.session());
 
-app.use('/api/auth', authRoutes);
+// Add error handling for route loading
+try {
+  app.use('/api/auth', authRoutes);
+  console.log('✅ Auth routes loaded successfully');
+} catch (error) {
+  console.error('❌ Error loading auth routes:', error);
+}
 app.use('/api/user', authRoutes); // Use same routes for user endpoints
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
