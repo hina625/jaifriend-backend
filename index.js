@@ -37,14 +37,24 @@ if (process.env.MONGO_URI) {
 
 const app = express();
 
-// IMPORTANT: Middleware for parsing JSON
-app.use(express.json());
-
+// CORS configuration - must come before other middleware
 const cors = require('cors');
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://jaifriend-frontend-n6zr.vercel.app'], // allow both local and production frontend
-  credentials: true // if you want to allow cookies/auth headers
+  origin: [
+    'http://localhost:3000', 
+    'https://jaifriend-frontend-n6zr.vercel.app',
+    'https://jaifriend-frontend.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// IMPORTANT: Middleware for parsing JSON
+app.use(express.json());
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret',
