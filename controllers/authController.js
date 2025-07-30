@@ -1,18 +1,47 @@
 const User = require('../models/user');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 exports.registerUser = async (req, res) => {
-  const { name, email, password, username } = req.body;
+  const { name, email, password, username, gender } = req.body;
   if (!username || !email || !password) {
     return res.status(400).json({ message: 'Username, email, and password are required' });
   }
+  
+  // Check if database is connected
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Database connection state:', mongoose.connection.readyState);
+    console.log('Attempting to reconnect...');
+    
+    try {
+      await mongoose.connect(process.env.MONGO_URI);
+      console.log('Reconnected to database successfully');
+    } catch (reconnectError) {
+      console.error('Reconnection failed:', reconnectError.message);
+      return res.status(503).json({ 
+        message: 'Database not connected. Please check your MongoDB connection.',
+        error: 'Database connection required'
+      });
+    }
+  }
+  
   try {
     let user = await User.findOne({ $or: [{ email }, { username }] });
     if (user) return res.status(400).json({ message: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    user = new User({ name, email, password: hashedPassword, username });
+    
+    // Ensure name is provided to satisfy validation
+    const userName = name || username; // Use username as fallback if name is not provided
+    
+    user = new User({ 
+      name: userName, 
+      email, 
+      password: hashedPassword, 
+      username,
+      gender: gender || 'Prefer not to say'
+    });
     await user.save();
 
     // Generate JWT token after registration
@@ -24,7 +53,35 @@ exports.registerUser = async (req, res) => {
       isSetupDone: user.isSetupDone
     });
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Registration error:', err);
+    console.error('Error details:', {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    });
+    
+    // Provide more specific error messages
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        error: err.message,
+        details: Object.values(err.errors).map(e => e.message)
+      });
+    }
+    
+    if (err.code === 11000) {
+      return res.status(400).json({ 
+        message: 'User already exists with this email or username',
+        error: 'Duplicate key error'
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: err.message,
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 };
 

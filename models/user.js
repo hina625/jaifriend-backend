@@ -15,7 +15,7 @@ const userSchema = new mongoose.Schema({
   workplace: { type: String, default: null },
   country: { type: String, default: null },
   address: { type: String, default: null },
-  gender: { type: String, enum: ['Male', 'Female', 'Other'], default: null },
+  gender: { type: String, enum: ['Male', 'Female', 'Other', 'Prefer not to say'], default: 'Prefer not to say' },
   dateOfBirth: { type: Date, default: null },
   phone: { type: String, default: null },
   isSetupDone: { type: Boolean, default: false },
@@ -48,7 +48,8 @@ const userSchema = new mongoose.Schema({
 // Custom validation: at least one of name or fullName must be present
 userSchema.pre('validate', function(next) {
   if (!this.name && !this.fullName) {
-    this.invalidate('name', 'Either name or fullName is required');
+    // Set name to username if neither name nor fullName is provided
+    this.name = this.username;
   }
   next();
 });
