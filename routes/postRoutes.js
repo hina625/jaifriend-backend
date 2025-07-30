@@ -25,6 +25,9 @@ router.get('/user', auth, postController.getUserPosts);
 // Get posts by specific user ID
 router.get('/by-user', auth, postController.getPostsByUserId);
 
+// Get posts for any user profile (public access)
+router.get('/profile/:userId', postController.getPostsByUserId);
+
 // Get all saved posts for the logged-in user (must be before /:id routes)
 router.get('/saved', auth, postController.getSavedPosts);
 

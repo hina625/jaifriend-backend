@@ -245,8 +245,17 @@ exports.getUserPosts = async (req, res) => {
       }
     }
 
-    const posts = await Post.find({ author: userId })
-      .populate('author', 'name avatar username')
+    const posts = await Post.find({ 
+      $or: [
+        { userId: userId },
+        { 'user.userId': userId }
+      ]
+    })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
       .sort({ createdAt: -1 });
 
     res.json(posts);
@@ -304,10 +313,17 @@ exports.getUserPhotos = async (req, res) => {
     }
 
     const posts = await Post.find({ 
-      author: userId,
+      $or: [
+        { userId: userId },
+        { 'user.userId': userId }
+      ],
       'media.type': 'image'
     })
-      .populate('author', 'name avatar username')
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
       .sort({ createdAt: -1 });
 
     res.json(posts);

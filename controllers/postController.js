@@ -22,10 +22,15 @@ exports.createPost = async (req, res) => {
         const isVideo = file.mimetype.startsWith('video/');
         const isAudio = file.mimetype.startsWith('audio/');
         
+        // Generate full URL for media
+        const baseUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://jaifriend-backend-production.up.railway.app'
+          : `${req.protocol}://${req.get('host')}`;
+        
         return {
-          url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
+          url: `${baseUrl}/uploads/${file.filename}`,
           type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
-          thumbnail: isVideo ? `${req.protocol}://${req.get('host')}/uploads/thumb_${file.filename}` : null,
+          thumbnail: isVideo ? `${baseUrl}/uploads/thumb_${file.filename}` : null,
           filename: file.filename,
           originalName: file.originalname,
           size: file.size,
@@ -92,7 +97,30 @@ exports.getAllPosts = async (req, res) => {
       .populate('views', 'name avatar')
       .limit(50);
     
-    res.json(posts);
+    // Ensure all media URLs are full URLs
+    const postsWithFullUrls = posts.map(post => {
+      const postObj = post.toObject();
+      if (postObj.media && postObj.media.length > 0) {
+        postObj.media = postObj.media.map(media => {
+          if (media.url && !media.url.startsWith('http')) {
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://jaifriend-backend-production.up.railway.app'
+              : 'http://localhost:5000';
+            media.url = `${baseUrl}${media.url}`;
+          }
+          if (media.thumbnail && !media.thumbnail.startsWith('http')) {
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://jaifriend-backend-production.up.railway.app'
+              : 'http://localhost:5000';
+            media.thumbnail = `${baseUrl}${media.thumbnail}`;
+          }
+          return media;
+        });
+      }
+      return postObj;
+    });
+    
+    res.json(postsWithFullUrls);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -102,7 +130,12 @@ exports.getAllPosts = async (req, res) => {
 exports.getUserPosts = async (req, res) => {
   try {
     const userId = req.userId;
-    const posts = await Post.find({ userId })
+    const posts = await Post.find({ 
+      $or: [
+        { userId: userId },
+        { 'user.userId': userId }
+      ]
+    })
       .sort({ createdAt: -1 })
       .populate('user.userId', 'name avatar username')
       .populate('comments.user.userId', 'name avatar')
@@ -110,7 +143,30 @@ exports.getUserPosts = async (req, res) => {
       .populate('savedBy', 'name avatar')
       .populate('views', 'name avatar');
     
-    res.json(posts);
+    // Ensure all media URLs are full URLs
+    const postsWithFullUrls = posts.map(post => {
+      const postObj = post.toObject();
+      if (postObj.media && postObj.media.length > 0) {
+        postObj.media = postObj.media.map(media => {
+          if (media.url && !media.url.startsWith('http')) {
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://jaifriend-backend-production.up.railway.app'
+              : 'http://localhost:5000';
+            media.url = `${baseUrl}${media.url}`;
+          }
+          if (media.thumbnail && !media.thumbnail.startsWith('http')) {
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://jaifriend-backend-production.up.railway.app'
+              : 'http://localhost:5000';
+            media.thumbnail = `${baseUrl}${media.thumbnail}`;
+          }
+          return media;
+        });
+      }
+      return postObj;
+    });
+    
+    res.json(postsWithFullUrls);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -119,7 +175,7 @@ exports.getUserPosts = async (req, res) => {
 // Get posts by specific user ID (for profile pages)
 exports.getPostsByUserId = async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId } = req.params || req.query;
     const currentUserId = req.userId;
 
     if (!userId) {
@@ -132,8 +188,13 @@ exports.getPostsByUserId = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Get posts by the specific user
-    const posts = await Post.find({ userId })
+    // Get posts by the specific user - check both userId and user.userId fields
+    const posts = await Post.find({ 
+      $or: [
+        { userId: userId },
+        { 'user.userId': userId }
+      ]
+    })
       .sort({ createdAt: -1 })
       .populate('user.userId', 'name avatar username')
       .populate('comments.user.userId', 'name avatar')
@@ -141,7 +202,30 @@ exports.getPostsByUserId = async (req, res) => {
       .populate('savedBy', 'name avatar')
       .populate('views', 'name avatar');
     
-    res.json(posts);
+    // Ensure all media URLs are full URLs
+    const postsWithFullUrls = posts.map(post => {
+      const postObj = post.toObject();
+      if (postObj.media && postObj.media.length > 0) {
+        postObj.media = postObj.media.map(media => {
+          if (media.url && !media.url.startsWith('http')) {
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://jaifriend-backend-production.up.railway.app'
+              : 'http://localhost:5000';
+            media.url = `${baseUrl}${media.url}`;
+          }
+          if (media.thumbnail && !media.thumbnail.startsWith('http')) {
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://jaifriend-backend-production.up.railway.app'
+              : 'http://localhost:5000';
+            media.thumbnail = `${baseUrl}${media.thumbnail}`;
+          }
+          return media;
+        });
+      }
+      return postObj;
+    });
+    
+    res.json(postsWithFullUrls);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
