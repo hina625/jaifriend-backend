@@ -1,145 +1,104 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
+const postRoutes = require('./routes/postRoutes');
+const albumRoutes = require('./routes/albumRoutes');
+const videoRoutes = require('./routes/videoRoutes');
+const eventRoutes = require('./routes/eventRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const productRoutes = require('./routes/productRoutes');
+const pageRoutes = require('./routes/pageRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+const userRoutes = require('./routes/userRoutes');
+const upgradeRoutes = require('./routes/upgradeRoutes');
+const fileMonitorRoutes = require('./routes/fileMonitorRoutes');
+const movieRoutes = require('./routes/movieRoutes');
 const session = require('express-session');
-const passport = require('passport');
-const cors = require('cors');
-const path = require('path');
+// Temporarily comment out passport to fix route loading
+// const passport = require('passport');
+// require('./config/passport'); // Passport strategies config (to be created)
 
-// Load environment variables
 dotenv.config();
 
-// Passport config
-require('./config/passport');
-
-// Initialize express app
-const app = express();
-
-// Set fallback JWT secret if not provided
+// Set fallback JWT_SECRET if not provided
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'fallback-secret-key-for-development';
   console.log('⚠️  Using fallback JWT_SECRET. Set JWT_SECRET in .env for production.');
 }
 
-// Middleware to parse JSON and form data
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Connect to database (optional for now)
+if (process.env.MONGO_URI) {
+  connectDB();
+} else {
+  console.log('⚠️  No MONGO_URI provided. Database features will not work.');
+}
 
-// CORS Configuration
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const allowedOrigins = [
-  FRONTEND_URL,
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'https://jaifriend-frontend-n6zr.vercel.app'
-];
+const app = express();
 
+// IMPORTANT: Middleware for parsing JSON
+app.use(express.json());
+
+const cors = require('cors');
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: ['http://localhost:3000', 'https://jaifriend-frontend-n6zr.vercel.app'], // allow both local and production frontend
+  credentials: true // if you want to allow cookies/auth headers
 }));
 
-// Add frontend URL to request object
-app.use((req, res, next) => {
-  req.frontendUrl = FRONTEND_URL;
-  next();
-});
-
-// Session & Passport
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret',
   resave: false,
   saveUninitialized: false,
 }));
-app.use(passport.initialize());
-app.use(passport.session());
+// Temporarily comment out passport middleware
+// app.use(passport.initialize());
+// app.use(passport.session());
 
-// Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/users', require('./routes/userRoutes'));
-app.use('/api/posts', require('./routes/postRoutes'));
-app.use('/api/albums', require('./routes/albumRoutes'));
-app.use('/api/videos', require('./routes/videoRoutes'));
-app.use('/api/events', require('./routes/eventRoutes'));
-app.use('/api/orders', require('./routes/orderRoutes'));
-app.use('/api/products', require('./routes/productRoutes'));
-app.use('/api/pages', require('./routes/pageRoutes'));
-app.use('/api/profile', require('./routes/profileRoutes'));
-app.use('/api/upload', require('./routes/uploadRoutes'));
-app.use('/api/upgrade', require('./routes/upgradeRoutes'));
-app.use('/api/filemonitor', require('./routes/fileMonitorRoutes'));
-app.use('/api/movies', require('./routes/movieRoutes'));
-app.use('/api/addresses', require('./routes/addressRoutes'));
-app.use('/api/userimages', require('./routes/userImageRoutes'));
-app.use('/api/dataexports', require('./routes/dataExportRoutes'));
-app.use('/api/invitations', require('./routes/invitationRoutes'));
-app.use('/api/notifications', require('./routes/notificationRoutes'));
-app.use('/api/settings/password', require('./routes/passwordRoutes'));
-app.use('/api/settings/privacy', require('./routes/privacyRoutes'));
-app.use('/api/settings/profile', require('./routes/profileSettingsRoutes'));
+app.use('/api/auth', authRoutes);
+app.use('/api/user', authRoutes); // Use same routes for user endpoints
+app.use('/api/users', userRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/albums', albumRoutes);
+app.use('/api/videos', videoRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/pages', pageRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/upgrade', upgradeRoutes);
+app.use('/api/filemonitor', fileMonitorRoutes);
+app.use('/api/movies', movieRoutes);
+app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
-// Static file access
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Root route
 app.get('/', (req, res) => {
-  res.send('🚀 API is running');
+  res.send('API is running 🚀');
 });
 
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: process.env.MONGO_URI ? 'Configured' : 'Not configured'
+
+
+// Add 404 handler
+app.use('*', (req, res) => {
+  console.log('404 - Route not found:', req.method, req.originalUrl);
+  res.status(404).json({ 
+    message: 'Route not found', 
+    method: req.method, 
+    url: req.originalUrl,
+    availableRoutes: [
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/posts',
+      '/api/albums',
+      '/api/users'
+    ]
   });
 });
 
-// 404 route
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.stack || err.message);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
-
-// Start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 API available at http://localhost:${PORT}/api`);
-  console.log(`🏥 Health check at http://localhost:${PORT}/api/health`);
-
-  // Connect to database
-  if (process.env.MONGO_URI) {
-    console.log('🔄 Connecting to MongoDB...');
-    connectDB().catch(err => {
-      console.log('⚠️  Database connection failed.');
-      console.log('💡 Make sure MONGO_URI is correct in Railway environment variables.');
-    });
-  } else {
-    console.log('⚠️  No MONGO_URI provided. Skipping DB connection.');
-  }
-
-  // Start file monitor if needed
+  console.log(`Server running on port ${PORT}`);
+ 
   const fileMonitor = require('./utils/fileMonitor');
   setTimeout(() => {
     fileMonitor.startWatching();
-  }, 2000);
+  }, 2000); // Start after 2 seconds to ensure everything is loaded
 });
