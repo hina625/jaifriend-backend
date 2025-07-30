@@ -63,7 +63,17 @@ const postSchema = new mongoose.Schema({
   ],
   isShared: { type: Boolean, default: false },
   originalPost: { type: mongoose.Schema.Types.ObjectId, ref: 'Post' },
+  originalAlbum: { type: mongoose.Schema.Types.ObjectId, ref: 'Album' },
   shareMessage: { type: String, maxlength: 500 },
+  sharedFrom: {
+    postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post' },
+    albumId: { type: mongoose.Schema.Types.ObjectId, ref: 'Album' },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    userName: { type: String },
+    userAvatar: { type: String },
+    albumName: { type: String },
+    albumMedia: [{ type: Object }]
+  },
   isEdited: { type: Boolean, default: false },
   editHistory: [{
     content: { type: String },

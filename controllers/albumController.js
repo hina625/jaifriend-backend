@@ -14,7 +14,7 @@ exports.createAlbum = async (req, res) => {
       media = req.files.map(file => {
         const isVideo = file.mimetype.startsWith('video/');
         return {
-          url: `/uploads/${file.filename}`,
+          url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
           type: isVideo ? 'video' : 'image',
           uploadedAt: new Date()
         };
@@ -81,7 +81,7 @@ exports.editAlbum = async (req, res) => {
       newMedia = req.files.map(file => {
         const isVideo = file.mimetype.startsWith('video/');
         return {
-          url: `/uploads/${file.filename}`,
+          url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
           type: isVideo ? 'video' : 'image',
           uploadedAt: new Date()
         };
@@ -202,29 +202,90 @@ exports.toggleLike = async (req, res) => {
 // Share album
 exports.shareAlbum = async (req, res) => {
   try {
-    const album = await Album.findById(req.params.id);
-    if (!album) return res.status(404).json({ message: 'Album not found' });
+    const { message, shareTo, shareOnTimeline, shareToPage, shareToGroup } = req.body;
     const userId = req.userId;
-    const shareIndex = album.shares.indexOf(userId);
-    if (shareIndex > -1) {
-      album.shares.splice(shareIndex, 1);
-    } else {
-      album.shares.push(userId);
+
+    const originalAlbum = await Album.findById(req.params.id).populate('user', 'name avatar');
+    if (!originalAlbum) return res.status(404).json({ message: 'Album not found' });
+
+    // Get current user info
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
-    await album.save();
+
+    let sharedPosts = [];
+
+    // Share on timeline as a post
+    if (shareOnTimeline) {
+      const Post = require('../models/post');
+      const timelinePost = new Post({
+        content: message || `Shared album: ${originalAlbum.name}`,
+        isShared: true,
+        originalAlbum: originalAlbum._id,
+        user: userId,
+        userId,
+        privacy: shareTo === 'public' ? 'public' : 'friends',
+        shareMessage: message,
+        sharedFrom: {
+          albumId: originalAlbum._id,
+          userId: originalAlbum.userId,
+          userName: originalAlbum.user?.name || 'Unknown User',
+          userAvatar: originalAlbum.user?.avatar || '/avatars/1.png.png',
+          albumName: originalAlbum.name,
+          albumMedia: originalAlbum.media
+        }
+      });
+      
+      await timelinePost.save();
+      sharedPosts.push(timelinePost);
+    }
+
+    // Share to page (if implemented)
+    if (shareToPage) {
+      // TODO: Implement page sharing
+      console.log('Page sharing not yet implemented');
+    }
+
+    // Share to group (if implemented)
+    if (shareToGroup) {
+      // TODO: Implement group sharing
+      console.log('Group sharing not yet implemented');
+    }
+
+    // Add user to original album's shares array
+    if (!originalAlbum.shares.includes(userId)) {
+      originalAlbum.shares.push(userId);
+      await originalAlbum.save();
+    }
+
+    // Create notification for original album owner
+    if (originalAlbum.userId.toString() !== userId.toString()) {
+      const Notification = require('../models/notification');
+      const notification = new Notification({
+        recipient: originalAlbum.userId,
+        sender: userId,
+        type: 'album_share',
+        album: originalAlbum._id,
+        message: `${currentUser.name} shared your album`
+      });
+      await notification.save();
+    }
     
     // Populate user info for response
-    await album.populate('user', 'name avatar');
-    await album.populate('comments.user', 'name avatar');
-    await album.populate('savedBy', 'name avatar');
-    await album.populate('reactions.user', 'name avatar');
+    await originalAlbum.populate('user', 'name avatar');
+    await originalAlbum.populate('comments.user', 'name avatar');
+    await originalAlbum.populate('savedBy', 'name avatar');
+    await originalAlbum.populate('reactions.user', 'name avatar');
     
     res.json({ 
-      album: album,
-      shares: album.shares, 
-      shared: shareIndex === -1 
+      album: originalAlbum,
+      sharedPosts,
+      shares: originalAlbum.shares, 
+      shared: true
     });
   } catch (err) {
+    console.error('Share album error:', err);
     res.status(500).json({ message: 'Error sharing album', error: err.message });
   }
 };

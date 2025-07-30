@@ -11,7 +11,7 @@ exports.createEvent = async (req, res) => {
 
     let coverImage = null;
     if (req.file) {
-      coverImage = `/uploads/${req.file.filename}`;
+      coverImage = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     }
 
     const event = new Event({

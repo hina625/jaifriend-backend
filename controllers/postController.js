@@ -1,5 +1,6 @@
 const Post = require('../models/post');
 const User = require('../models/user');
+const Notification = require('../models/notification');
 const mongoose = require('mongoose');
 
 // Create a new post
@@ -407,35 +408,81 @@ exports.deleteComment = async (req, res) => {
 exports.sharePost = async (req, res) => {
   try {
     const { id } = req.params;
-    const { message, shareTo } = req.body;
+    const { message, shareTo, shareOnTimeline, shareToPage, shareToGroup } = req.body;
     const userId = req.userId;
 
-    const originalPost = await Post.findById(id);
+    const originalPost = await Post.findById(id).populate('user', 'name avatar');
     if (!originalPost) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Create shared post
-    const sharedPost = new Post({
-      content: message || '',
-      isShared: true,
-      originalPost: originalPost._id,
-      user: { userId, name: req.user?.name || 'User', avatar: req.user?.avatar || '/avatars/1.png.png' },
-      userId,
-      privacy: shareTo === 'public' ? 'public' : 'friends'
-    });
+    // Get current user info
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
-    await sharedPost.save();
+    let sharedPosts = [];
 
-    // Increment share count on original post
-    originalPost.shares += 1;
-    await originalPost.save();
+    // Share on timeline
+    if (shareOnTimeline) {
+      const timelinePost = new Post({
+        content: message || `Shared: ${originalPost.content}`,
+        isShared: true,
+        originalPost: originalPost._id,
+        user: userId,
+        userId,
+        privacy: shareTo === 'public' ? 'public' : 'friends',
+        shareMessage: message,
+        sharedFrom: {
+          postId: originalPost._id,
+          userId: originalPost.userId,
+          userName: originalPost.user?.name || 'Unknown User',
+          userAvatar: originalPost.user?.avatar || '/avatars/1.png.png'
+        }
+      });
+      
+      await timelinePost.save();
+      sharedPosts.push(timelinePost);
+    }
+
+    // Share to page (if implemented)
+    if (shareToPage) {
+      // TODO: Implement page sharing
+      console.log('Page sharing not yet implemented');
+    }
+
+    // Share to group (if implemented)
+    if (shareToGroup) {
+      // TODO: Implement group sharing
+      console.log('Group sharing not yet implemented');
+    }
+
+    // Add user to original post's shares array
+    if (!originalPost.shares.includes(userId)) {
+      originalPost.shares.push(userId);
+      await originalPost.save();
+    }
+
+    // Create notification for original post owner
+    if (originalPost.userId.toString() !== userId.toString()) {
+      const notification = new Notification({
+        recipient: originalPost.userId,
+        sender: userId,
+        type: 'post_share',
+        post: originalPost._id,
+        message: `${currentUser.name} shared your post`
+      });
+      await notification.save();
+    }
 
     res.json({ 
       message: 'Post shared successfully',
-      sharedPost
+      sharedPosts,
+      shares: originalPost.shares
     });
   } catch (err) {
+    console.error('Share post error:', err);
     res.status(500).json({ error: err.message });
   }
 };

@@ -6,6 +6,7 @@ const postRoutes = require('./routes/postRoutes');
 const albumRoutes = require('./routes/albumRoutes');
 const videoRoutes = require('./routes/videoRoutes');
 const eventRoutes = require('./routes/eventRoutes');
+const groupRoutes = require('./routes/groupRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes');
 const pageRoutes = require('./routes/pageRoutes');
@@ -67,6 +68,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/groups', groupRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/pages', pageRoutes);
@@ -94,7 +96,10 @@ app.use('*', (req, res) => {
       '/api/auth/register',
       '/api/posts',
       '/api/albums',
-      '/api/users'
+      '/api/users',
+      '/api/groups',
+      '/api/events',
+      '/api/videos'
     ]
   });
 });

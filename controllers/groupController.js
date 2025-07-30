@@ -7,14 +7,16 @@ const fs = require('fs');
 exports.createGroup = async (req, res) => {
   try {
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     let avatar = null;
     if (req.file) {
       avatar = `/uploads/${req.file.filename}`;
     }
 
-    const group = new Group({
+    const groupData = {
       name: req.body.name,
       description: req.body.description,
       creator: req.userId,
@@ -26,7 +28,9 @@ exports.createGroup = async (req, res) => {
       website: req.body.website,
       email: req.body.email,
       phone: req.body.phone
-    });
+    };
+
+    const group = new Group(groupData);
 
     // Add creator as admin
     group.admins.push(req.userId);
