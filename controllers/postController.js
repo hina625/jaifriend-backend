@@ -260,14 +260,42 @@ exports.deletePost = async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    // Check if user is authorized to delete this post
     if (post.userId.toString() !== userId) {
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
+    // Delete associated media files from uploads folder
+    if (post.media && post.media.length > 0) {
+      const fs = require('fs');
+      const path = require('path');
+      
+      for (const mediaItem of post.media) {
+        if (mediaItem.filename) {
+          const filePath = path.join(__dirname, '..', 'uploads', mediaItem.filename);
+          try {
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
+          } catch (fileError) {
+            console.error('Error deleting media file:', fileError);
+          }
+        }
+      }
+    }
+
+    // Delete the post from database
     await Post.findByIdAndDelete(id);
-    res.json({ message: 'Post deleted successfully' });
+    
+    res.json({ 
+      message: 'Post deleted successfully',
+      postId: id
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      message: 'Error deleting post',
+      error: err.message 
+    });
   }
 };
 

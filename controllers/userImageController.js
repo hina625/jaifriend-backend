@@ -5,20 +5,31 @@ const path = require('path');
 // Get user images
 exports.getUserImages = async (req, res) => {
   try {
+    console.log('getUserImages called');
+    console.log('req.user:', req.user);
+    console.log('req.userId:', req.userId);
+    
     const userId = req.user.id;
+    console.log('Extracted userId:', userId);
     
     let userImage = await UserImage.findOne({ userId });
+    console.log('Found userImage:', userImage);
     
     // If no user image record exists, create one
     if (!userImage) {
+      console.log('Creating new userImage record');
       userImage = new UserImage({ userId });
       await userImage.save();
+      console.log('New userImage saved:', userImage);
     }
     
-    res.json({
+    const response = {
       avatar: userImage.avatar,
       cover: userImage.cover
-    });
+    };
+    console.log('Sending response:', response);
+    
+    res.json(response);
   } catch (error) {
     console.error('Error fetching user images:', error);
     res.status(500).json({ error: 'Failed to fetch user images' });
@@ -63,37 +74,53 @@ exports.updateUserImages = async (req, res) => {
 // Upload avatar image
 exports.uploadAvatar = async (req, res) => {
   try {
+    console.log('uploadAvatar called');
+    console.log('req.user:', req.user);
+    console.log('req.file:', req.file);
+    
     const userId = req.user.id;
+    console.log('userId:', userId);
     
     if (!req.file) {
+      console.log('No file uploaded');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const fileName = req.file.filename;
     const filePath = `/uploads/${fileName}`;
+    console.log('fileName:', fileName);
+    console.log('filePath:', filePath);
 
     let userImage = await UserImage.findOne({ userId });
+    console.log('Found userImage:', userImage);
     
     if (!userImage) {
+      console.log('Creating new userImage for avatar');
       userImage = new UserImage({ userId });
     }
 
     // Delete old avatar file if exists
     if (userImage.avatarFileName) {
       const oldFilePath = path.join(__dirname, '..', 'uploads', userImage.avatarFileName);
+      console.log('Checking old file:', oldFilePath);
       if (fs.existsSync(oldFilePath)) {
         fs.unlinkSync(oldFilePath);
+        console.log('Deleted old avatar file');
       }
     }
 
     userImage.avatar = filePath;
     userImage.avatarFileName = fileName;
     await userImage.save();
+    console.log('Saved userImage:', userImage);
 
-    res.json({
+    const response = {
       message: 'Avatar uploaded successfully',
       avatar: filePath
-    });
+    };
+    console.log('Sending response:', response);
+
+    res.json(response);
   } catch (error) {
     console.error('Error uploading avatar:', error);
     res.status(500).json({ error: 'Failed to upload avatar' });

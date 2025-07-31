@@ -12,6 +12,7 @@ const productRoutes = require('./routes/productRoutes');
 const pageRoutes = require('./routes/pageRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const userRoutes = require('./routes/userRoutes');
+const userImageRoutes = require('./routes/userImageRoutes');
 const upgradeRoutes = require('./routes/upgradeRoutes');
 const fileMonitorRoutes = require('./routes/fileMonitorRoutes');
 const movieRoutes = require('./routes/movieRoutes');
@@ -74,6 +75,7 @@ try {
 }
 app.use('/api/user', authRoutes); // Use same routes for user endpoints
 app.use('/api/users', userRoutes);
+app.use('/api/userimages', userImageRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/videos', videoRoutes);
