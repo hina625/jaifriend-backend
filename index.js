@@ -20,6 +20,8 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const privacyRoutes = require('./routes/privacyRoutes');
 const passwordRoutes = require('./routes/passwordRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const socialLinksRoutes = require('./routes/socialLinksRoutes');
+const verificationRoutes = require('./routes/verificationRoutes');
 const session = require('express-session');
 const fs = require('fs');
 const path = require('path');
@@ -111,6 +113,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/upgrade', upgradeRoutes);
 app.use('/api/filemonitor', fileMonitorRoutes);
 app.use('/api/movies', movieRoutes);
+app.use('/api/social-links', socialLinksRoutes);
+app.use('/api/verification', verificationRoutes);
 app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {

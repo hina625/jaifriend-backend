@@ -1,15 +1,63 @@
 const Event = require('../models/event');
 const User = require('../models/user');
+const { isCloudinaryConfigured } = require('../config/cloudinary');
 const path = require('path');
 const fs = require('fs');
 
 // Create event
 exports.createEvent = async (req, res) => {
   try {
-    console.log('🎯 Creating event with data:', req.body);
-    console.log('📁 File:', req.file);
-    console.log('👤 User ID:', req.userId);
-    console.log('📋 Headers:', req.headers);
+    console.log('=== Event Creation Started ===');
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file);
+    console.log('User ID from auth:', req.userId);
+    
+    // Check if user is authenticated
+    if (!req.userId) {
+      console.log('❌ No user ID found in request');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    // Validate required fields
+    if (!req.body.title || !req.body.title.trim()) {
+      console.log('❌ Title is missing or empty');
+      return res.status(400).json({ error: 'Event title is required.' });
+    }
+    
+    if (!req.body.startDate) {
+      console.log('❌ Start date is missing');
+      return res.status(400).json({ error: 'Start date is required.' });
+    }
+    
+    if (!req.body.endDate) {
+      console.log('❌ End date is missing');
+      return res.status(400).json({ error: 'End date is required.' });
+    }
+    
+    // Validate dates
+    const startDate = new Date(req.body.startDate);
+    const endDate = new Date(req.body.endDate);
+    const now = new Date();
+    
+    if (isNaN(startDate.getTime())) {
+      console.log('❌ Invalid start date:', req.body.startDate);
+      return res.status(400).json({ error: 'Invalid start date format.' });
+    }
+    
+    if (isNaN(endDate.getTime())) {
+      console.log('❌ Invalid end date:', req.body.endDate);
+      return res.status(400).json({ error: 'Invalid end date format.' });
+    }
+    
+    if (startDate < now) {
+      console.log('❌ Start date is in the past');
+      return res.status(400).json({ error: 'Start date must be in the future.' });
+    }
+    
+    if (endDate <= startDate) {
+      console.log('❌ End date must be after start date');
+      return res.status(400).json({ error: 'End date must be after start date.' });
+    }
     
     console.log('🔍 Looking for user with ID:', req.userId);
     const user = await User.findById(req.userId);
@@ -19,9 +67,19 @@ exports.createEvent = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Handle cover image
     let coverImage = null;
     if (req.file) {
-      coverImage = req.file.path; // Cloudinary secure URL
+      console.log('📸 Image uploaded successfully:', req.file.path);
+      if (isCloudinaryConfigured) {
+        coverImage = req.file.path; // Cloudinary secure URL
+      } else {
+        // For local storage, construct a relative URL
+        coverImage = `/uploads/${req.file.filename}`;
+        console.log('📁 Local image URL:', coverImage);
+      }
+    } else {
+      console.log('📸 No image uploaded');
     }
 
     // Handle location data properly
@@ -58,13 +116,13 @@ exports.createEvent = async (req, res) => {
     }
 
     const eventData = {
-      title: req.body.title,
-      description: req.body.description,
+      title: req.body.title.trim(),
+      description: req.body.description || '',
       organizer: req.userId,
       group: req.body.groupId || null,
       coverImage: coverImage,
-      startDate: req.body.startDate,
-      endDate: req.body.endDate,
+      startDate: startDate,
+      endDate: endDate,
       location: location,
       category: req.body.category || 'social',
       tags: tags,
@@ -83,14 +141,21 @@ exports.createEvent = async (req, res) => {
     console.log('🎉 Event created successfully:', event._id);
     res.status(201).json(event);
   } catch (error) {
-    console.error('Error creating event:', error);
+    console.error('❌ Error creating event:', error);
+    console.error('Error stack:', error.stack);
     
-    // Handle specific validation errors
+    // Handle specific MongoDB errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
       return res.status(400).json({ 
         error: 'Validation failed', 
         details: validationErrors 
+      });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid data format' 
       });
     }
     

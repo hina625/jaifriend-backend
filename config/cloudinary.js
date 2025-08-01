@@ -2,26 +2,62 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'your-cloud-name',
-  api_key: process.env.CLOUDINARY_API_KEY || 'your-api-key',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'your-api-secret'
-});
+// Check if Cloudinary credentials are properly configured
+const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
+                              process.env.CLOUDINARY_API_KEY && 
+                              process.env.CLOUDINARY_API_SECRET &&
+                              process.env.CLOUDINARY_CLOUD_NAME !== 'your-cloud-name' &&
+                              process.env.CLOUDINARY_API_KEY !== 'your-api-key' &&
+                              process.env.CLOUDINARY_API_SECRET !== 'your-api-secret';
 
-// Configure Cloudinary storage for multer
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'jaifriend-media',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'webm'],
-    transformation: [
-      { width: 1000, height: 1000, crop: 'limit' }, // Limit image size
-      { quality: 'auto:good' } // Optimize quality
-    ],
-    resource_type: 'auto' // Auto-detect resource type (image/video)
-  }
-});
+console.log('☁️ Cloudinary configuration check:');
+console.log('  - Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME ? 'Set' : 'Missing');
+console.log('  - API Key:', process.env.CLOUDINARY_API_KEY ? 'Set' : 'Missing');
+console.log('  - API Secret:', process.env.CLOUDINARY_API_SECRET ? 'Set' : 'Missing');
+console.log('  - Fully configured:', isCloudinaryConfigured ? 'Yes' : 'No');
+
+// Configure Cloudinary only if credentials are available
+if (isCloudinaryConfigured) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+  console.log('✅ Cloudinary configured successfully');
+} else {
+  console.log('⚠️ Cloudinary not configured - using local storage fallback');
+}
+
+// Configure storage based on availability
+let storage;
+if (isCloudinaryConfigured) {
+  // Use Cloudinary storage
+  storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'jaifriend-media',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'webm'],
+      transformation: [
+        { width: 1000, height: 1000, crop: 'limit' }, // Limit image size
+        { quality: 'auto:good' } // Optimize quality
+      ],
+      resource_type: 'auto' // Auto-detect resource type (image/video)
+    }
+  });
+} else {
+  // Use local storage as fallback
+  const path = require('path');
+  storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+  console.log('📁 Using local storage fallback');
+}
 
 // Create multer upload instance
 const upload = multer({ 
@@ -41,6 +77,11 @@ const upload = multer({
 
 // Function to delete file from Cloudinary
 const deleteFromCloudinary = async (publicId) => {
+  if (!isCloudinaryConfigured) {
+    console.log('⚠️ Cloudinary not configured - skipping delete');
+    return;
+  }
+  
   try {
     const result = await cloudinary.uploader.destroy(publicId);
     console.log('✅ File deleted from Cloudinary:', publicId);
@@ -53,6 +94,11 @@ const deleteFromCloudinary = async (publicId) => {
 
 // Function to get optimized URL
 const getOptimizedUrl = (publicId, options = {}) => {
+  if (!isCloudinaryConfigured) {
+    console.log('⚠️ Cloudinary not configured - returning original URL');
+    return publicId; // Return the original URL if Cloudinary is not configured
+  }
+  
   const defaultOptions = {
     quality: 'auto:good',
     fetch_format: 'auto',
@@ -64,6 +110,11 @@ const getOptimizedUrl = (publicId, options = {}) => {
 
 // Function to generate thumbnail for videos
 const generateThumbnail = async (publicId) => {
+  if (!isCloudinaryConfigured) {
+    console.log('⚠️ Cloudinary not configured - skipping thumbnail generation');
+    return null;
+  }
+  
   try {
     const result = await cloudinary.uploader.explicit(publicId, {
       type: 'upload',
@@ -85,5 +136,6 @@ module.exports = {
   upload,
   deleteFromCloudinary,
   getOptimizedUrl,
-  generateThumbnail
+  generateThumbnail,
+  isCloudinaryConfigured
 }; 
