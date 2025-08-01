@@ -22,16 +22,12 @@ exports.createPost = async (req, res) => {
         const isVideo = file.mimetype.startsWith('video/');
         const isAudio = file.mimetype.startsWith('audio/');
         
-        // Generate full URL for media
-        const baseUrl = process.env.NODE_ENV === 'production' 
-          ? 'https://jaifriend-backend-production.up.railway.app'
-          : `${req.protocol}://${req.get('host')}`;
-        
+        // Cloudinary provides secure URLs directly
         return {
-          url: `${baseUrl}/uploads/${file.filename}`,
+          url: file.path, // Cloudinary secure URL
+          publicId: file.filename, // Cloudinary public ID for deletion
           type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
-          thumbnail: isVideo ? `${baseUrl}/uploads/thumb_${file.filename}` : null,
-          filename: file.filename,
+          thumbnail: isVideo ? file.path.replace('/upload/', '/upload/w_300,h_300,c_fill/') : null,
           originalName: file.originalname,
           size: file.size,
           mimetype: file.mimetype,
@@ -235,6 +231,8 @@ exports.getPostsByUserId = async (req, res) => {
 exports.getSavedPosts = async (req, res) => {
   try {
     const userId = req.userId;
+    console.log('🔍 Fetching saved posts for user:', userId);
+    
     const posts = await Post.find({ savedBy: userId })
       .sort({ createdAt: -1 })
       .populate('user.userId', 'name avatar username')
@@ -243,8 +241,10 @@ exports.getSavedPosts = async (req, res) => {
       .populate('savedBy', 'name avatar')
       .populate('views', 'name avatar');
     
+    console.log('✅ Found', posts.length, 'saved posts for user:', userId);
     res.json(posts);
   } catch (err) {
+    console.error('❌ Error fetching saved posts:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -280,20 +280,17 @@ exports.deletePost = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
-    // Delete associated media files from uploads folder
+    // Delete associated media files from Cloudinary
     if (post.media && post.media.length > 0) {
-      const fs = require('fs');
-      const path = require('path');
+      const { deleteFromCloudinary } = require('../config/cloudinary');
       
       for (const mediaItem of post.media) {
-        if (mediaItem.filename) {
-          const filePath = path.join(__dirname, '..', 'uploads', mediaItem.filename);
+        if (mediaItem.publicId) {
           try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
+            await deleteFromCloudinary(mediaItem.publicId);
+            console.log('✅ Media file deleted from Cloudinary:', mediaItem.publicId);
           } catch (fileError) {
-            console.error('Error deleting media file:', fileError);
+            console.error('❌ Error deleting media file from Cloudinary:', fileError);
           }
         }
       }
@@ -394,19 +391,28 @@ exports.toggleSave = async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
 
+    console.log('🎯 Toggle save request for post:', id, 'by user:', userId);
+
     const post = await Post.findById(id);
     if (!post) {
+      console.log('❌ Post not found:', id);
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    console.log('📋 Current savedBy:', post.savedBy);
     const saveIndex = post.savedBy.indexOf(userId);
+    console.log('🔍 Save index:', saveIndex);
+
     if (saveIndex > -1) {
       post.savedBy.splice(saveIndex, 1);
+      console.log('❌ Removed user from savedBy');
     } else {
       post.savedBy.push(userId);
+      console.log('✅ Added user to savedBy');
     }
 
     await post.save();
+    console.log('💾 Post saved, new savedBy:', post.savedBy);
     
     // Populate user info for response
     await post.populate('user.userId', 'name avatar username');
@@ -418,8 +424,8 @@ exports.toggleSave = async (req, res) => {
     res.json({ 
       message: saveIndex > -1 ? 'Post unsaved' : 'Post saved',
       post: post,
-      saved: post.savedBy.length,
-      isSaved: saveIndex === -1
+      savedBy: post.savedBy,
+      saved: saveIndex === -1
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -504,10 +510,10 @@ exports.editPost = async (req, res) => {
         const isAudio = file.mimetype.startsWith('audio/');
         
         return {
-          url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
+          url: file.path, // Cloudinary secure URL
+          publicId: file.filename, // Cloudinary public ID for deletion
           type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
-          thumbnail: isVideo ? `${req.protocol}://${req.get('host')}/uploads/thumb_${file.filename}` : null,
-          filename: file.filename,
+          thumbnail: isVideo ? file.path.replace('/upload/', '/upload/w_300,h_300,c_fill/') : null,
           originalName: file.originalname,
           size: file.size,
           mimetype: file.mimetype,

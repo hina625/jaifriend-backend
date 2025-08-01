@@ -21,7 +21,7 @@ exports.createEvent = async (req, res) => {
 
     let coverImage = null;
     if (req.file) {
-      coverImage = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      coverImage = req.file.path; // Cloudinary secure URL
     }
 
     // Handle location data properly
@@ -189,14 +189,18 @@ exports.updateEvent = async (req, res) => {
     
     // Handle cover image
     if (req.file) {
-      // Delete old cover image if it exists
-      if (event.coverImage && event.coverImage.startsWith('/uploads/')) {
-        const oldPath = path.join(__dirname, '..', event.coverImage);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
+      // Delete old cover image from Cloudinary if it exists
+      if (event.coverImage && event.coverImage.includes('cloudinary.com')) {
+        try {
+          const { deleteFromCloudinary } = require('../config/cloudinary');
+          const publicId = event.coverImage.split('/').pop().split('.')[0]; // Extract public ID
+          await deleteFromCloudinary(publicId);
+          console.log('✅ Old cover image deleted from Cloudinary:', publicId);
+        } catch (error) {
+          console.error('❌ Error deleting old cover image:', error);
         }
       }
-      event.coverImage = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      event.coverImage = req.file.path; // Cloudinary secure URL
     }
     
     // Handle location data properly

@@ -2,19 +2,9 @@ const express = require('express');
 const router = express.Router();
 const postController = require('../controllers/postController');
 const auth = require('../middlewares/authMiddleware');
-const multer = require('multer');
-const path = require('path');
 
-// Set up multer for uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '..', 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage: storage });
+// Import cloud storage configuration
+const { upload } = require('../config/cloudinary');
 
 // Get all posts (for dashboard feed)
 router.get('/', postController.getAllPosts);

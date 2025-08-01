@@ -86,10 +86,10 @@ exports.uploadAvatar = async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const fileName = req.file.filename;
-    const filePath = `/uploads/${fileName}`;
-    console.log('fileName:', fileName);
-    console.log('filePath:', filePath);
+    const cloudinaryUrl = req.file.path; // Cloudinary secure URL
+    const publicId = req.file.filename; // Cloudinary public ID
+    console.log('cloudinaryUrl:', cloudinaryUrl);
+    console.log('publicId:', publicId);
 
     let userImage = await UserImage.findOne({ userId });
     console.log('Found userImage:', userImage);
@@ -99,24 +99,26 @@ exports.uploadAvatar = async (req, res) => {
       userImage = new UserImage({ userId });
     }
 
-    // Delete old avatar file if exists
-    if (userImage.avatarFileName) {
-      const oldFilePath = path.join(__dirname, '..', 'uploads', userImage.avatarFileName);
-      console.log('Checking old file:', oldFilePath);
-      if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath);
-        console.log('Deleted old avatar file');
+    // Delete old avatar from Cloudinary if it exists
+    if (userImage.avatar && userImage.avatar.includes('cloudinary.com')) {
+      try {
+        const { deleteFromCloudinary } = require('../config/cloudinary');
+        const oldPublicId = userImage.avatar.split('/').pop().split('.')[0]; // Extract public ID
+        await deleteFromCloudinary(oldPublicId);
+        console.log('✅ Old avatar deleted from Cloudinary:', oldPublicId);
+      } catch (error) {
+        console.error('❌ Error deleting old avatar:', error);
       }
     }
 
-    userImage.avatar = filePath;
-    userImage.avatarFileName = fileName;
+    userImage.avatar = cloudinaryUrl;
+    userImage.avatarPublicId = publicId;
     await userImage.save();
     console.log('Saved userImage:', userImage);
 
     const response = {
       message: 'Avatar uploaded successfully',
-      avatar: filePath
+      avatar: cloudinaryUrl
     };
     console.log('Sending response:', response);
 
@@ -136,8 +138,8 @@ exports.uploadCover = async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const fileName = req.file.filename;
-    const filePath = `/uploads/${fileName}`;
+    const cloudinaryUrl = req.file.path; // Cloudinary secure URL
+    const publicId = req.file.filename; // Cloudinary public ID
 
     let userImage = await UserImage.findOne({ userId });
     
@@ -145,21 +147,25 @@ exports.uploadCover = async (req, res) => {
       userImage = new UserImage({ userId });
     }
 
-    // Delete old cover file if exists
-    if (userImage.coverFileName) {
-      const oldFilePath = path.join(__dirname, '..', 'uploads', userImage.coverFileName);
-      if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath);
+    // Delete old cover from Cloudinary if it exists
+    if (userImage.cover && userImage.cover.includes('cloudinary.com')) {
+      try {
+        const { deleteFromCloudinary } = require('../config/cloudinary');
+        const oldPublicId = userImage.cover.split('/').pop().split('.')[0]; // Extract public ID
+        await deleteFromCloudinary(oldPublicId);
+        console.log('✅ Old cover deleted from Cloudinary:', oldPublicId);
+      } catch (error) {
+        console.error('❌ Error deleting old cover:', error);
       }
     }
 
-    userImage.cover = filePath;
-    userImage.coverFileName = fileName;
+    userImage.cover = cloudinaryUrl;
+    userImage.coverPublicId = publicId;
     await userImage.save();
 
     res.json({
       message: 'Cover uploaded successfully',
-      cover: filePath
+      cover: cloudinaryUrl
     });
   } catch (error) {
     console.error('Error uploading cover:', error);

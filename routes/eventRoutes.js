@@ -1,38 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middlewares/authMiddleware');
-const multer = require('multer');
-const path = require('path');
 
-// Set up multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '..', 'uploads');
-    // Ensure directory exists
-    const fs = require('fs');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit for event images
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  }
-});
+// Import cloud storage configuration
+const { upload } = require('../config/cloudinary');
 
 // Import event controller
 const eventController = require('../controllers/eventController');

@@ -29,7 +29,7 @@ exports.createProduct = async (req, res) => {
     // Handle image URL
     let imageUrl = null;
     if (req.file) {
-      imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      imageUrl = req.file.path; // Cloudinary secure URL
     }
     
     const product = new Product({

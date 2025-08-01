@@ -7,11 +7,17 @@ const Album = require('../models/album');
 exports.getMyProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
+    console.log('🔍 getMyProfile called with userId:', userId);
+    console.log('🔍 req.user:', req.user);
+    console.log('🔍 req.userId:', req.userId);
     
     if (!userId) {
+      console.log('❌ No userId found in request');
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
+    console.log('🔍 Looking for user with ID:', userId);
+    
     // Get user with populated posts
     const user = await User.findById(userId)
       .populate({
@@ -25,9 +31,14 @@ exports.getMyProfile = async (req, res) => {
       .populate('followers', 'name avatar username')
       .select('-password');
     
+    console.log('🔍 User found:', user ? 'Yes' : 'No');
+    
     if (!user) {
+      console.log('❌ User not found in database for ID:', userId);
       return res.status(404).json({ error: 'User not found' });
     }
+
+    console.log('✅ User found successfully:', user.name || user.username);
 
     // Calculate profile completion
     const completionItems = [

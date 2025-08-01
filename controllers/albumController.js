@@ -372,17 +372,24 @@ exports.toggleSave = async (req, res) => {
     if (!album) return res.status(404).json({ message: 'Album not found' });
     
     const userId = req.userId;
+    console.log('🎯 Toggle save request for album:', req.params.id, 'by user:', userId);
+    console.log('📋 Current savedBy:', album.savedBy);
+    
     const saveIndex = album.savedBy.indexOf(userId);
+    console.log('🔍 Save index:', saveIndex);
     
     if (saveIndex > -1) {
       // Unsave
       album.savedBy.splice(saveIndex, 1);
+      console.log('❌ Removed user from savedBy');
     } else {
       // Save
       album.savedBy.push(userId);
+      console.log('✅ Added user to savedBy');
     }
     
     await album.save();
+    console.log('💾 Album saved, new savedBy:', album.savedBy);
     
     // Populate user info for response
     await album.populate('user', 'name avatar');
@@ -403,12 +410,18 @@ exports.toggleSave = async (req, res) => {
 // Get saved albums for user
 exports.getSavedAlbums = async (req, res) => {
   try {
-    const albums = await Album.find({ savedBy: req.userId })
+    const userId = req.userId;
+    console.log('🔍 Fetching saved albums for user:', userId);
+    
+    const albums = await Album.find({ savedBy: userId })
       .sort({ createdAt: -1 })
       .populate('user', 'name avatar')
       .populate('comments.user', 'name avatar');
+    
+    console.log('✅ Found', albums.length, 'saved albums for user:', userId);
     res.json(albums);
   } catch (err) {
+    console.error('❌ Error fetching saved albums:', err);
     res.status(500).json({ message: 'Error fetching saved albums' });
   }
 };
