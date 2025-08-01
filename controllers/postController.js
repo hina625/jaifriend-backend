@@ -255,13 +255,28 @@ exports.deletePost = async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
 
+    console.log('🗑️ Deleting post:', id);
+    console.log('👤 User ID:', userId);
+
     const post = await Post.findById(id);
     if (!post) {
+      console.log('❌ Post not found:', id);
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    console.log('📋 Post found:', {
+      postId: post._id,
+      postUserId: post.user?.userId,
+      postUser: post.user,
+      requestingUserId: userId
+    });
+
     // Check if user is authorized to delete this post
-    if (post.userId.toString() !== userId) {
+    if (post.user?.userId?.toString() !== userId) {
+      console.log('❌ Unauthorized delete attempt:', {
+        postUserId: post.user?.userId?.toString(),
+        requestingUserId: userId
+      });
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
@@ -285,16 +300,37 @@ exports.deletePost = async (req, res) => {
     }
 
     // Delete the post from database
+    console.log('💾 Deleting post from database...');
     await Post.findByIdAndDelete(id);
     
+    console.log('✅ Post deleted successfully:', id);
     res.json({ 
       message: 'Post deleted successfully',
       postId: id
     });
   } catch (err) {
+    console.error('❌ Error deleting post:', err);
+    console.error('❌ Error stack:', err.stack);
+    
+    // Handle specific error types
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        message: 'Invalid post ID format',
+        error: err.message 
+      });
+    }
+    
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation error',
+        error: err.message 
+      });
+    }
+    
     res.status(500).json({ 
       message: 'Error deleting post',
-      error: err.message 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   }
 };
@@ -317,12 +353,12 @@ exports.toggleLike = async (req, res) => {
       post.likes.push(userId);
       
       // Create notification for post owner when someone likes their post
-      if (post.userId.toString() !== userId.toString()) {
+      if (post.user?.userId?.toString() !== userId.toString()) {
         const { createNotification } = require('./notificationController');
         const currentUser = await User.findById(userId);
         
         await createNotification({
-          userId: post.userId,
+          userId: post.user?.userId,
           type: 'like',
           title: 'New Like',
           message: `${currentUser.name} liked your post`,
@@ -413,11 +449,11 @@ exports.addComment = async (req, res) => {
     await post.save();
 
     // Create notification for post owner when someone comments on their post
-    if (post.userId.toString() !== userId.toString()) {
+    if (post.user?.userId?.toString() !== userId.toString()) {
       const { createNotification } = require('./notificationController');
       
       await createNotification({
-        userId: post.userId,
+        userId: post.user?.userId,
         type: 'comment',
         title: 'New Comment',
         message: `${user.name} commented on your post`,
@@ -456,7 +492,7 @@ exports.editPost = async (req, res) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    if (post.userId.toString() !== userId) {
+    if (post.user?.userId?.toString() !== userId) {
       return res.status(403).json({ message: 'Not authorized to edit this post' });
     }
 
@@ -588,7 +624,7 @@ exports.sharePost = async (req, res) => {
         shareMessage: message,
         sharedFrom: {
           postId: originalPost._id,
-          userId: originalPost.userId,
+          userId: originalPost.user?.userId,
           userName: originalPost.user?.name || 'Unknown User',
           userAvatar: originalPost.user?.avatar || '/avatars/1.png.png',
           postContent: originalPost.content,
@@ -621,11 +657,11 @@ exports.sharePost = async (req, res) => {
     }
 
     // Create notification for original post owner
-    if (originalPost.userId.toString() !== userId.toString()) {
+    if (originalPost.user?.userId?.toString() !== userId.toString()) {
       const { createNotification } = require('./notificationController');
       
       await createNotification({
-        userId: originalPost.userId,
+        userId: originalPost.user?.userId,
         type: 'share',
         title: 'Post Shared',
         message: `${currentUser.name} shared your post`,

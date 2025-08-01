@@ -6,11 +6,16 @@ const fs = require('fs');
 // Create event
 exports.createEvent = async (req, res) => {
   try {
-    console.log('Creating event with data:', req.body);
-    console.log('File:', req.file);
+    console.log('🎯 Creating event with data:', req.body);
+    console.log('📁 File:', req.file);
+    console.log('👤 User ID:', req.userId);
+    console.log('📋 Headers:', req.headers);
     
+    console.log('🔍 Looking for user with ID:', req.userId);
     const user = await User.findById(req.userId);
+    console.log('👤 User found:', user ? 'Yes' : 'No');
     if (!user) {
+      console.log('❌ User not found for ID:', req.userId);
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -66,17 +71,48 @@ exports.createEvent = async (req, res) => {
       privacy: req.body.privacy || 'public'
     };
 
-    console.log('Event data to save:', eventData);
+    console.log('📋 Event data to save:', eventData);
 
+    console.log('🏗️ Creating new Event instance...');
     const event = new Event(eventData);
+    console.log('💾 Saving event to database...');
     await event.save();
+    console.log('✅ Event saved successfully, populating organizer...');
     await event.populate('organizer', 'name username avatar');
     
-    console.log('Event created successfully:', event._id);
+    console.log('🎉 Event created successfully:', event._id);
     res.status(201).json(event);
   } catch (error) {
     console.error('Error creating event:', error);
-    res.status(500).json({ error: error.message });
+    
+    // Handle specific validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: validationErrors 
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        error: 'Event with this title already exists' 
+      });
+    }
+    
+    // Handle file upload errors
+    if (error.message && error.message.includes('file')) {
+      return res.status(400).json({ 
+        error: 'File upload error: ' + error.message 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Internal server error', 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
