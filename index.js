@@ -16,7 +16,13 @@ const userImageRoutes = require('./routes/userImageRoutes');
 const upgradeRoutes = require('./routes/upgradeRoutes');
 const fileMonitorRoutes = require('./routes/fileMonitorRoutes');
 const movieRoutes = require('./routes/movieRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const privacyRoutes = require('./routes/privacyRoutes');
+const passwordRoutes = require('./routes/passwordRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const session = require('express-session');
+const fs = require('fs');
+const path = require('path');
 // Temporarily comment out passport to fix route loading
 // const passport = require('passport');
 // require('./config/passport'); // Passport strategies config (to be created)
@@ -35,6 +41,19 @@ if (process.env.MONGO_URI) {
 } else {
   console.log('⚠️  No MONGO_URI provided. Database features will not work.');
 }
+
+// Create uploads directories if they don't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+const profilePhotosDir = path.join(uploadsDir, 'profile-photos');
+const coverPhotosDir = path.join(uploadsDir, 'cover-photos');
+const postMediaDir = path.join(uploadsDir, 'post-media');
+
+[uploadsDir, profilePhotosDir, coverPhotosDir, postMediaDir].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`📁 Created directory: ${dir}`);
+  }
+});
 
 const app = express();
 
@@ -85,6 +104,10 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/pages', pageRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/privacy', privacyRoutes);
+app.use('/api/password', passwordRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/upgrade', upgradeRoutes);
 app.use('/api/filemonitor', fileMonitorRoutes);
 app.use('/api/movies', movieRoutes);

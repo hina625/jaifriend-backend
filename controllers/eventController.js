@@ -6,33 +6,76 @@ const fs = require('fs');
 // Create event
 exports.createEvent = async (req, res) => {
   try {
+    console.log('Creating event with data:', req.body);
+    console.log('File:', req.file);
+    
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     let coverImage = null;
     if (req.file) {
       coverImage = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     }
 
-    const event = new Event({
+    // Handle location data properly
+    let location = null;
+    if (req.body.location) {
+      try {
+        // If location is sent as JSON string
+        if (typeof req.body.location === 'string') {
+          location = JSON.parse(req.body.location);
+        } else {
+          // If location is sent as form data with brackets
+          location = {
+            address: req.body['location[address]'] || req.body.location,
+            coordinates: req.body['location[coordinates]'] ? JSON.parse(req.body['location[coordinates]']) : null
+          };
+        }
+      } catch (error) {
+        console.error('Error parsing location:', error);
+        location = {
+          address: req.body['location[address]'] || req.body.location || ''
+        };
+      }
+    }
+
+    // Handle tags data
+    let tags = [];
+    if (req.body.tags) {
+      try {
+        tags = typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags;
+      } catch (error) {
+        console.error('Error parsing tags:', error);
+        tags = [];
+      }
+    }
+
+    const eventData = {
       title: req.body.title,
       description: req.body.description,
       organizer: req.userId,
-      group: req.body.groupId,
+      group: req.body.groupId || null,
       coverImage: coverImage,
       startDate: req.body.startDate,
       endDate: req.body.endDate,
-      location: req.body.location ? JSON.parse(req.body.location) : null,
-      category: req.body.category || 'general',
-      tags: req.body.tags ? JSON.parse(req.body.tags) : [],
+      location: location,
+      category: req.body.category || 'social',
+      tags: tags,
       privacy: req.body.privacy || 'public'
-    });
+    };
 
+    console.log('Event data to save:', eventData);
+
+    const event = new Event(eventData);
     await event.save();
     await event.populate('organizer', 'name username avatar');
     
+    console.log('Event created successfully:', event._id);
     res.status(201).json(event);
   } catch (error) {
+    console.error('Error creating event:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -96,29 +139,79 @@ exports.getEventById = async (req, res) => {
 // Update event
 exports.updateEvent = async (req, res) => {
   try {
+    console.log('Updating event with data:', req.body);
+    console.log('File:', req.file);
+    
     const event = await Event.findById(req.params.eventId);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
     
     if (event.organizer.toString() !== req.userId) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
     
+    // Handle cover image
     if (req.file) {
-      // Delete old cover image
+      // Delete old cover image if it exists
       if (event.coverImage && event.coverImage.startsWith('/uploads/')) {
         const oldPath = path.join(__dirname, '..', event.coverImage);
         if (fs.existsSync(oldPath)) {
           fs.unlinkSync(oldPath);
         }
       }
-      event.coverImage = `/uploads/${req.file.filename}`;
+      event.coverImage = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     }
     
-    Object.assign(event, req.body);
-    await event.save();
+    // Handle location data properly
+    if (req.body.location) {
+      try {
+        // If location is sent as JSON string
+        if (typeof req.body.location === 'string') {
+          event.location = JSON.parse(req.body.location);
+        } else {
+          // If location is sent as form data with brackets
+          event.location = {
+            address: req.body['location[address]'] || req.body.location,
+            coordinates: req.body['location[coordinates]'] ? JSON.parse(req.body['location[coordinates]']) : null
+          };
+        }
+      } catch (error) {
+        console.error('Error parsing location:', error);
+        event.location = {
+          address: req.body['location[address]'] || req.body.location || ''
+        };
+      }
+    }
     
+    // Handle tags data
+    if (req.body.tags) {
+      try {
+        event.tags = typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags;
+      } catch (error) {
+        console.error('Error parsing tags:', error);
+        event.tags = [];
+      }
+    }
+    
+    // Update other fields
+    if (req.body.title) event.title = req.body.title;
+    if (req.body.description) event.description = req.body.description;
+    if (req.body.startDate) event.startDate = req.body.startDate;
+    if (req.body.endDate) event.endDate = req.body.endDate;
+    if (req.body.category) event.category = req.body.category;
+    if (req.body.privacy) event.privacy = req.body.privacy;
+    if (req.body.groupId) event.group = req.body.groupId;
+    
+    console.log('Event data to save:', event);
+    
+    await event.save();
+    await event.populate('organizer', 'name username avatar');
+    
+    console.log('Event updated successfully:', event._id);
     res.json(event);
   } catch (error) {
+    console.error('Error updating event:', error);
     res.status(500).json({ error: error.message });
   }
 };

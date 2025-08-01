@@ -315,6 +315,21 @@ exports.toggleLike = async (req, res) => {
       post.likes.splice(likeIndex, 1);
     } else {
       post.likes.push(userId);
+      
+      // Create notification for post owner when someone likes their post
+      if (post.userId.toString() !== userId.toString()) {
+        const { createNotification } = require('./notificationController');
+        const currentUser = await User.findById(userId);
+        
+        await createNotification({
+          userId: post.userId,
+          type: 'like',
+          title: 'New Like',
+          message: `${currentUser.name} liked your post`,
+          relatedUserId: userId,
+          relatedPostId: post._id
+        });
+      }
     }
 
     await post.save();
@@ -396,6 +411,20 @@ exports.addComment = async (req, res) => {
 
     post.comments.push(comment);
     await post.save();
+
+    // Create notification for post owner when someone comments on their post
+    if (post.userId.toString() !== userId.toString()) {
+      const { createNotification } = require('./notificationController');
+      
+      await createNotification({
+        userId: post.userId,
+        type: 'comment',
+        title: 'New Comment',
+        message: `${user.name} commented on your post`,
+        relatedUserId: userId,
+        relatedPostId: post._id
+      });
+    }
 
     // Populate user info for response
     await post.populate('user.userId', 'name avatar username');
@@ -523,6 +552,16 @@ exports.sharePost = async (req, res) => {
     const { message, shareTo, shareOnTimeline, shareToPage, shareToGroup } = req.body;
     const userId = req.userId;
 
+    console.log('Post share request:', {
+      postId: id,
+      userId,
+      message,
+      shareTo,
+      shareOnTimeline,
+      shareToPage,
+      shareToGroup
+    });
+
     const originalPost = await Post.findById(id).populate('user', 'name avatar');
     if (!originalPost) {
       return res.status(404).json({ message: 'Post not found' });
@@ -535,6 +574,7 @@ exports.sharePost = async (req, res) => {
     }
 
     let sharedPosts = [];
+    let shareCount = 0;
 
     // Share on timeline
     if (shareOnTimeline) {
@@ -550,12 +590,16 @@ exports.sharePost = async (req, res) => {
           postId: originalPost._id,
           userId: originalPost.userId,
           userName: originalPost.user?.name || 'Unknown User',
-          userAvatar: originalPost.user?.avatar || '/avatars/1.png.png'
+          userAvatar: originalPost.user?.avatar || '/avatars/1.png.png',
+          postContent: originalPost.content,
+          postMedia: originalPost.media
         }
       });
       
       await timelinePost.save();
       sharedPosts.push(timelinePost);
+      shareCount++;
+      console.log('Post shared to timeline as new post:', timelinePost._id);
     }
 
     // Share to page (if implemented)
@@ -570,7 +614,7 @@ exports.sharePost = async (req, res) => {
       console.log('Group sharing not yet implemented');
     }
 
-    // Add user to original post's shares array
+    // Add user to original post's shares array if not already there
     if (!originalPost.shares.includes(userId)) {
       originalPost.shares.push(userId);
       await originalPost.save();
@@ -578,24 +622,35 @@ exports.sharePost = async (req, res) => {
 
     // Create notification for original post owner
     if (originalPost.userId.toString() !== userId.toString()) {
-      const notification = new Notification({
-        recipient: originalPost.userId,
-        sender: userId,
-        type: 'post_share',
-        post: originalPost._id,
-        message: `${currentUser.name} shared your post`
+      const { createNotification } = require('./notificationController');
+      
+      await createNotification({
+        userId: originalPost.userId,
+        type: 'share',
+        title: 'Post Shared',
+        message: `${currentUser.name} shared your post`,
+        relatedUserId: userId,
+        relatedPostId: originalPost._id
       });
-      await notification.save();
     }
 
+    console.log('Post share completed successfully:', {
+      postId: originalPost._id,
+      sharesCount: originalPost.shares.length,
+      sharedPostsCount: sharedPosts.length
+    });
+
     res.json({ 
-      message: 'Post shared successfully',
+      post: originalPost,
       sharedPosts,
-      shares: originalPost.shares
+      shares: originalPost.shares,
+      shared: true,
+      shareCount,
+      message: `Post shared successfully to ${shareCount} location${shareCount !== 1 ? 's' : ''}`
     });
   } catch (err) {
     console.error('Share post error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ message: 'Error sharing post', error: err.message });
   }
 };
 

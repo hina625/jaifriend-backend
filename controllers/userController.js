@@ -129,6 +129,18 @@ exports.followUser = async (req, res) => {
       await User.findByIdAndUpdate(userId, {
         $addToSet: { followers: currentUserId }
       });
+      
+      // Create notification for the user being followed
+      const { createNotification } = require('./notificationController');
+      
+      await createNotification({
+        userId: userId,
+        type: 'follow',
+        title: 'New Follower',
+        message: `${currentUser.name} started following you`,
+        relatedUserId: currentUserId
+      });
+      
       res.json({ message: 'Followed successfully', isFollowing: true, currentUserId });
     }
   } catch (error) {

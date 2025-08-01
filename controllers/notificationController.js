@@ -337,6 +337,14 @@ const getNotificationStats = async (req, res) => {
 // Create notification (utility function for other controllers)
 const createNotification = async (data) => {
   try {
+    // Check if user has notification settings enabled for this type
+    const shouldCreateNotification = await checkNotificationSettings(data.userId, data.type);
+    
+    if (!shouldCreateNotification) {
+      console.log(`Notification skipped for user ${data.userId}, type ${data.type} - settings disabled`);
+      return null;
+    }
+
     const notification = new Notification({
       userId: data.userId,
       type: data.type,
@@ -356,6 +364,47 @@ const createNotification = async (data) => {
   }
 };
 
+// Check if user has notification settings enabled for specific type
+const checkNotificationSettings = async (userId, notificationType) => {
+  try {
+    const user = await User.findById(userId).select('notificationSettings');
+    
+    if (!user || !user.notificationSettings) {
+      // If no settings found, default to true (allow notifications)
+      return true;
+    }
+
+    const settings = user.notificationSettings;
+    
+    // Map notification types to settings
+    const typeToSettingMap = {
+      'like': 'someonelikedMyPosts',
+      'comment': 'someoneCommentedOnMyPosts',
+      'share': 'someoneSharedOnMyPosts',
+      'follow': 'someoneFollowedMe',
+      'page_like': 'someoneLikedMyPages',
+      'profile_visit': 'someoneVisitedMyProfile',
+      'mention': 'someoneMentionedMe',
+      'group_join': 'someoneJoinedMyGroups',
+      'friend_request': 'someoneAcceptedMyFriendRequest',
+      'timeline_post': 'someonePostedOnMyTimeline'
+    };
+
+    const settingKey = typeToSettingMap[notificationType];
+    
+    if (!settingKey) {
+      // If type not mapped, default to true
+      return true;
+    }
+
+    return settings[settingKey] !== false; // Return true if setting is not explicitly false
+  } catch (error) {
+    console.error('Error checking notification settings:', error);
+    // Default to true if there's an error
+    return true;
+  }
+};
+
 module.exports = {
   getNotificationSettings,
   updateNotificationSettings,
@@ -364,5 +413,6 @@ module.exports = {
   markAllNotificationsAsRead,
   deleteNotification,
   getNotificationStats,
-  createNotification
+  createNotification,
+  checkNotificationSettings
 }; 

@@ -205,8 +205,20 @@ exports.shareAlbum = async (req, res) => {
     const { message, shareTo, shareOnTimeline, shareToPage, shareToGroup } = req.body;
     const userId = req.userId;
 
+    console.log('Album share request:', {
+      albumId: req.params.id,
+      userId,
+      message,
+      shareTo,
+      shareOnTimeline,
+      shareToPage,
+      shareToGroup
+    });
+
     const originalAlbum = await Album.findById(req.params.id).populate('user', 'name avatar');
-    if (!originalAlbum) return res.status(404).json({ message: 'Album not found' });
+    if (!originalAlbum) {
+      return res.status(404).json({ message: 'Album not found' });
+    }
 
     // Get current user info
     const currentUser = await User.findById(userId);
@@ -215,6 +227,7 @@ exports.shareAlbum = async (req, res) => {
     }
 
     let sharedPosts = [];
+    let shareCount = 0;
 
     // Share on timeline as a post
     if (shareOnTimeline) {
@@ -239,6 +252,8 @@ exports.shareAlbum = async (req, res) => {
       
       await timelinePost.save();
       sharedPosts.push(timelinePost);
+      shareCount++;
+      console.log('Album shared to timeline as post:', timelinePost._id);
     }
 
     // Share to page (if implemented)
@@ -253,7 +268,7 @@ exports.shareAlbum = async (req, res) => {
       console.log('Group sharing not yet implemented');
     }
 
-    // Add user to original album's shares array
+    // Add user to original album's shares array if not already there
     if (!originalAlbum.shares.includes(userId)) {
       originalAlbum.shares.push(userId);
       await originalAlbum.save();
@@ -261,15 +276,16 @@ exports.shareAlbum = async (req, res) => {
 
     // Create notification for original album owner
     if (originalAlbum.userId.toString() !== userId.toString()) {
-      const Notification = require('../models/notification');
-      const notification = new Notification({
-        recipient: originalAlbum.userId,
-        sender: userId,
-        type: 'album_share',
-        album: originalAlbum._id,
-        message: `${currentUser.name} shared your album`
+      const { createNotification } = require('./notificationController');
+      
+      await createNotification({
+        userId: originalAlbum.userId,
+        type: 'share',
+        title: 'Album Shared',
+        message: `${currentUser.name} shared your album "${originalAlbum.name}"`,
+        relatedUserId: userId,
+        relatedPostId: originalAlbum._id
       });
-      await notification.save();
     }
     
     // Populate user info for response
@@ -278,11 +294,19 @@ exports.shareAlbum = async (req, res) => {
     await originalAlbum.populate('savedBy', 'name avatar');
     await originalAlbum.populate('reactions.user', 'name avatar');
     
+    console.log('Album share completed successfully:', {
+      albumId: originalAlbum._id,
+      sharesCount: originalAlbum.shares.length,
+      sharedPostsCount: sharedPosts.length
+    });
+    
     res.json({ 
       album: originalAlbum,
       sharedPosts,
       shares: originalAlbum.shares, 
-      shared: true
+      shared: true,
+      shareCount,
+      message: `Album shared successfully to ${shareCount} location${shareCount !== 1 ? 's' : ''}`
     });
   } catch (err) {
     console.error('Share album error:', err);
