@@ -83,11 +83,25 @@ exports.createEvent = async (req, res) => {
     }
 
     // Handle location data properly
+    console.log('🔍 Location debugging:');
+    console.log('req.body.location:', req.body.location);
+    console.log('req.body["location[address]"]:', req.body['location[address]']);
+    console.log('req.body keys:', Object.keys(req.body));
+    
     let location = null;
     if (req.body['location[address]'] || req.body.location) {
+      // Ensure we're working with a string, not an object
+      let locationAddress = '';
+      if (req.body['location[address]']) {
+        locationAddress = String(req.body['location[address]']);
+      } else if (req.body.location) {
+        locationAddress = String(req.body.location);
+      }
+      
       location = {
-        address: req.body['location[address]'] || req.body.location || ''
+        address: locationAddress
       };
+      console.log('📍 Final location object:', location);
     }
 
     // Handle tags data
@@ -256,8 +270,16 @@ exports.updateEvent = async (req, res) => {
     
     // Handle location data properly
     if (req.body['location[address]'] || req.body.location) {
+      // Ensure we're working with a string, not an object
+      let locationAddress = '';
+      if (req.body['location[address]']) {
+        locationAddress = String(req.body['location[address]']);
+      } else if (req.body.location) {
+        locationAddress = String(req.body.location);
+      }
+      
       event.location = {
-        address: req.body['location[address]'] || req.body.location || ''
+        address: locationAddress
       };
     }
     
