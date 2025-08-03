@@ -84,24 +84,10 @@ exports.createEvent = async (req, res) => {
 
     // Handle location data properly
     let location = null;
-    if (req.body.location) {
-      try {
-        // If location is sent as JSON string
-        if (typeof req.body.location === 'string') {
-          location = JSON.parse(req.body.location);
-        } else {
-          // If location is sent as form data with brackets
-          location = {
-            address: req.body['location[address]'] || req.body.location,
-            coordinates: req.body['location[coordinates]'] ? JSON.parse(req.body['location[coordinates]']) : null
-          };
-        }
-      } catch (error) {
-        console.error('Error parsing location:', error);
-        location = {
-          address: req.body['location[address]'] || req.body.location || ''
-        };
-      }
+    if (req.body['location[address]'] || req.body.location) {
+      location = {
+        address: req.body['location[address]'] || req.body.location || ''
+      };
     }
 
     // Handle tags data
@@ -269,24 +255,10 @@ exports.updateEvent = async (req, res) => {
     }
     
     // Handle location data properly
-    if (req.body.location) {
-      try {
-        // If location is sent as JSON string
-        if (typeof req.body.location === 'string') {
-          event.location = JSON.parse(req.body.location);
-        } else {
-          // If location is sent as form data with brackets
-          event.location = {
-            address: req.body['location[address]'] || req.body.location,
-            coordinates: req.body['location[coordinates]'] ? JSON.parse(req.body['location[coordinates]']) : null
-          };
-        }
-      } catch (error) {
-        console.error('Error parsing location:', error);
-        event.location = {
-          address: req.body['location[address]'] || req.body.location || ''
-        };
-      }
+    if (req.body['location[address]'] || req.body.location) {
+      event.location = {
+        address: req.body['location[address]'] || req.body.location || ''
+      };
     }
     
     // Handle tags data
