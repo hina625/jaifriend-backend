@@ -49,7 +49,7 @@ exports.createProduct = async (req, res) => {
     if (req.file) {
       console.log('📸 Image uploaded successfully:', req.file.path);
       if (isCloudinaryConfigured) {
-        imageUrl = req.file.path; // Cloudinary secure URL
+      imageUrl = req.file.path; // Cloudinary secure URL
       } else {
         // For local storage, construct a relative URL
         imageUrl = `/uploads/${req.file.filename}`;

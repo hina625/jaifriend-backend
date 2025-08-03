@@ -18,7 +18,7 @@ console.log('  - Fully configured:', isCloudinaryConfigured ? 'Yes' : 'No');
 
 // Configure Cloudinary only if credentials are available
 if (isCloudinaryConfigured) {
-  cloudinary.config({
+cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
@@ -33,17 +33,17 @@ let storage;
 if (isCloudinaryConfigured) {
   // Use Cloudinary storage
   storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-      folder: 'jaifriend-media',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'webm'],
-      transformation: [
-        { width: 1000, height: 1000, crop: 'limit' }, // Limit image size
-        { quality: 'auto:good' } // Optimize quality
-      ],
-      resource_type: 'auto' // Auto-detect resource type (image/video)
-    }
-  });
+  cloudinary: cloudinary,
+  params: {
+    folder: 'jaifriend-media',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'webm'],
+    transformation: [
+      { width: 1000, height: 1000, crop: 'limit' }, // Limit image size
+      { quality: 'auto:good' } // Optimize quality
+    ],
+    resource_type: 'auto' // Auto-detect resource type (image/video)
+  }
+});
 } else {
   // Use local storage as fallback
   const path = require('path');

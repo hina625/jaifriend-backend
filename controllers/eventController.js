@@ -299,13 +299,59 @@ exports.updateEvent = async (req, res) => {
       }
     }
     
-    // Update other fields
-    if (req.body.title) event.title = req.body.title;
-    if (req.body.description) event.description = req.body.description;
-    if (req.body.startDate) event.startDate = req.body.startDate;
-    if (req.body.endDate) event.endDate = req.body.endDate;
-    if (req.body.category) event.category = req.body.category;
-    if (req.body.privacy) event.privacy = req.body.privacy;
+    // Update other fields with validation
+    if (req.body.title) {
+      if (!req.body.title.trim()) {
+        return res.status(400).json({ error: 'Event title cannot be empty.' });
+      }
+      event.title = req.body.title.trim();
+    }
+    
+    if (req.body.description !== undefined) {
+      event.description = req.body.description || '';
+    }
+    
+    if (req.body.startDate) {
+      const startDate = new Date(req.body.startDate);
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid start date format.' });
+      }
+      event.startDate = startDate;
+    }
+    
+    if (req.body.endDate) {
+      const endDate = new Date(req.body.endDate);
+      if (isNaN(endDate.getTime())) {
+        return res.status(400).json({ error: 'Invalid end date format.' });
+      }
+      event.endDate = endDate;
+    }
+    
+    // Validate that end date is after start date if both are provided
+    if (req.body.startDate && req.body.endDate) {
+      const startDate = new Date(req.body.startDate);
+      const endDate = new Date(req.body.endDate);
+      if (endDate <= startDate) {
+        return res.status(400).json({ error: 'End date must be after start date.' });
+      }
+    }
+    
+    if (req.body.category) {
+      const validCategories = ['business', 'education', 'entertainment', 'health', 'sports', 'technology', 'travel', 'social', 'other'];
+      if (!validCategories.includes(req.body.category)) {
+        return res.status(400).json({ error: 'Invalid category.' });
+      }
+      event.category = req.body.category;
+    }
+    
+    if (req.body.privacy) {
+      const validPrivacy = ['public', 'private', 'group'];
+      if (!validPrivacy.includes(req.body.privacy)) {
+        return res.status(400).json({ error: 'Invalid privacy setting.' });
+      }
+      event.privacy = req.body.privacy;
+    }
+    
     if (req.body.groupId) event.group = req.body.groupId;
     
     console.log('Event data to save:', event);
@@ -317,7 +363,35 @@ exports.updateEvent = async (req, res) => {
     res.json(event);
   } catch (error) {
     console.error('Error updating event:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error stack:', error.stack);
+    
+    // Handle specific MongoDB errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: validationErrors 
+      });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid data format' 
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        error: 'Event with this title already exists' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Internal server error', 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
