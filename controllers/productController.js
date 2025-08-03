@@ -57,6 +57,12 @@ exports.createProduct = async (req, res) => {
                                     process.env.CLOUDINARY_API_KEY !== 'your-api-key' &&
                                     process.env.CLOUDINARY_API_SECRET !== 'your-api-secret';
       
+      console.log('🔍 Cloudinary Configuration Check:');
+      console.log('  - Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME || 'NOT SET');
+      console.log('  - API Key:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET');
+      console.log('  - API Secret:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET');
+      console.log('  - Is Configured:', isCloudinaryConfigured);
+      
       if (isCloudinaryConfigured) {
         // Use Cloudinary URL (already a full HTTPS URL)
         imageUrl = req.file.path;
@@ -65,6 +71,8 @@ exports.createProduct = async (req, res) => {
         // For local storage, construct a relative URL
         imageUrl = `/uploads/${req.file.filename}`;
         console.log('📁 Local image URL:', imageUrl);
+        console.log('⚠️ WARNING: Using local storage - images will be lost on server restart!');
+        console.log('💡 Suggestion: Set up Cloudinary for permanent image storage');
       }
     } else {
       console.log('📸 No image uploaded');
