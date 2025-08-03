@@ -49,7 +49,7 @@ exports.createProduct = async (req, res) => {
     if (req.file) {
       console.log('📸 Image uploaded successfully:', req.file.path);
       if (isCloudinaryConfigured) {
-      imageUrl = req.file.path; // Cloudinary secure URL
+        imageUrl = req.file.path; // Cloudinary secure URL
       } else {
         // For local storage, construct a relative URL
         imageUrl = `/uploads/${req.file.filename}`;
@@ -139,5 +139,51 @@ exports.getLatestProducts = async (req, res) => {
   } catch (err) {
     console.error('Error fetching latest products:', err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+exports.deleteProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    // Check if user is authenticated
+    if (!req.userId) {
+      console.log('❌ No user ID found in request');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    console.log('🔍 Looking for product with ID:', productId);
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+      console.log('❌ Product not found with ID:', productId);
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    // Check if user owns the product
+    if (product.seller.toString() !== req.userId) {
+      console.log('❌ User not authorized to delete this product');
+      return res.status(403).json({ error: 'Not authorized to delete this product' });
+    }
+    
+    console.log('✅ Product found and user authorized, deleting...');
+    
+    // Delete the product
+    await Product.findByIdAndDelete(productId);
+    
+    console.log('✅ Product deleted successfully');
+    res.json({ message: 'Product deleted successfully' });
+  } catch (err) {
+    console.error('❌ Error deleting product:', err);
+    console.error('Error stack:', err.stack);
+    
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid product ID' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Internal server error', 
+      message: err.message 
+    });
   }
 }; 
