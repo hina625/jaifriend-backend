@@ -90,12 +90,29 @@ exports.createEvent = async (req, res) => {
     
     let location = null;
     if (req.body['location[address]'] || req.body.location) {
-      // Ensure we're working with a string, not an object
+      // Handle location data safely
       let locationAddress = '';
+      
       if (req.body['location[address]']) {
-        locationAddress = String(req.body['location[address]']);
+        // Handle location[address] field
+        if (typeof req.body['location[address]'] === 'string') {
+          locationAddress = req.body['location[address]'];
+        } else if (req.body['location[address]'] && typeof req.body['location[address]'] === 'object') {
+          // If it's an object, try to extract address property
+          locationAddress = req.body['location[address]'].address || '';
+        } else {
+          locationAddress = String(req.body['location[address]'] || '');
+        }
       } else if (req.body.location) {
-        locationAddress = String(req.body.location);
+        // Handle location field
+        if (typeof req.body.location === 'string') {
+          locationAddress = req.body.location;
+        } else if (req.body.location && typeof req.body.location === 'object') {
+          // If it's an object, try to extract address property
+          locationAddress = req.body.location.address || '';
+        } else {
+          locationAddress = String(req.body.location || '');
+        }
       }
       
       location = {
@@ -270,12 +287,29 @@ exports.updateEvent = async (req, res) => {
     
     // Handle location data properly
     if (req.body['location[address]'] || req.body.location) {
-      // Ensure we're working with a string, not an object
+      // Handle location data safely
       let locationAddress = '';
+      
       if (req.body['location[address]']) {
-        locationAddress = String(req.body['location[address]']);
+        // Handle location[address] field
+        if (typeof req.body['location[address]'] === 'string') {
+          locationAddress = req.body['location[address]'];
+        } else if (req.body['location[address]'] && typeof req.body['location[address]'] === 'object') {
+          // If it's an object, try to extract address property
+          locationAddress = req.body['location[address]'].address || '';
+        } else {
+          locationAddress = String(req.body['location[address]'] || '');
+        }
       } else if (req.body.location) {
-        locationAddress = String(req.body.location);
+        // Handle location field
+        if (typeof req.body.location === 'string') {
+          locationAddress = req.body.location;
+        } else if (req.body.location && typeof req.body.location === 'object') {
+          // If it's an object, try to extract address property
+          locationAddress = req.body.location.address || '';
+        } else {
+          locationAddress = String(req.body.location || '');
+        }
       }
       
       event.location = {
