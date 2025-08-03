@@ -131,6 +131,18 @@ exports.getProducts = async (req, res) => {
       .sort({ createdAt: -1 });
     
     console.log('Products fetched:', products.length);
+    
+    // Debug: Log image information for each product
+    products.forEach((product, index) => {
+      console.log(`Product ${index + 1}:`, {
+        name: product.name,
+        image: product.image,
+        hasImage: !!product.image,
+        imageType: typeof product.image,
+        imageLength: product.image ? product.image.length : 0
+      });
+    });
+    
     res.json(products);
   } catch (err) {
     console.error('Error fetching products:', err);
