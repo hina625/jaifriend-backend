@@ -48,8 +48,19 @@ exports.createProduct = async (req, res) => {
     let imageUrl = null;
     if (req.file) {
       console.log('📸 Image uploaded successfully:', req.file.path);
+      
+      // Check if Cloudinary is configured
+      const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
+                                    process.env.CLOUDINARY_API_KEY && 
+                                    process.env.CLOUDINARY_API_SECRET &&
+                                    process.env.CLOUDINARY_CLOUD_NAME !== 'your-cloud-name' &&
+                                    process.env.CLOUDINARY_API_KEY !== 'your-api-key' &&
+                                    process.env.CLOUDINARY_API_SECRET !== 'your-api-secret';
+      
       if (isCloudinaryConfigured) {
-        imageUrl = req.file.path; // Cloudinary secure URL
+        // Use Cloudinary URL (already a full HTTPS URL)
+        imageUrl = req.file.path;
+        console.log('☁️ Cloudinary image URL:', imageUrl);
       } else {
         // For local storage, construct a relative URL
         imageUrl = `/uploads/${req.file.filename}`;
