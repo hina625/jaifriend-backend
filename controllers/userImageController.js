@@ -213,7 +213,7 @@ exports.uploadCover = async (req, res) => {
     console.log('Cover publicId:', publicId);
     console.log('Cover file path:', req.file.path);
     console.log('Cover file filename:', req.file.filename);
-    
+
     userImage.cover = cloudinaryUrl;
     userImage.coverPublicId = publicId;
     await userImage.save();

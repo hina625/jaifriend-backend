@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema({
   isSetupDone: { type: Boolean, default: false },
   isOnline: { type: Boolean, default: false },
   lastSeen: { type: Date, default: Date.now },
+  lastActive: { type: Date, default: Date.now },
   isVerified: { type: Boolean, default: false },
   isPrivate: { type: Boolean, default: false },
   isBlocked: { type: Boolean, default: false },
