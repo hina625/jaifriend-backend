@@ -86,10 +86,27 @@ exports.uploadAvatar = async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const cloudinaryUrl = req.file.path; // Cloudinary secure URL
-    const publicId = req.file.filename; // Cloudinary public ID
+    // Handle both Cloudinary and local storage URLs
+    let cloudinaryUrl;
+    let publicId;
+    
+    if (req.file.path && req.file.path.startsWith('http')) {
+      // Cloudinary URL
+      cloudinaryUrl = req.file.path;
+      publicId = req.file.filename;
+    } else {
+      // Local storage URL - construct full URL
+      const baseUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://jaifriend-backend-production.up.railway.app'
+        : 'http://localhost:3001';
+      cloudinaryUrl = `${baseUrl}/uploads/${req.file.filename}`;
+      publicId = req.file.filename;
+    }
+    
     console.log('cloudinaryUrl:', cloudinaryUrl);
     console.log('publicId:', publicId);
+    console.log('File path:', req.file.path);
+    console.log('File filename:', req.file.filename);
 
     let userImage = await UserImage.findOne({ userId });
     console.log('Found userImage:', userImage);
@@ -143,8 +160,22 @@ exports.uploadCover = async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const cloudinaryUrl = req.file.path; // Cloudinary secure URL
-    const publicId = req.file.filename; // Cloudinary public ID
+    // Handle both Cloudinary and local storage URLs
+    let cloudinaryUrl;
+    let publicId;
+    
+    if (req.file.path && req.file.path.startsWith('http')) {
+      // Cloudinary URL
+      cloudinaryUrl = req.file.path;
+      publicId = req.file.filename;
+    } else {
+      // Local storage URL - construct full URL
+      const baseUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://jaifriend-backend-production.up.railway.app'
+        : 'http://localhost:3001';
+      cloudinaryUrl = `${baseUrl}/uploads/${req.file.filename}`;
+      publicId = req.file.filename;
+    }
 
     let userImage = await UserImage.findOne({ userId });
     
@@ -164,6 +195,11 @@ exports.uploadCover = async (req, res) => {
       }
     }
 
+    console.log('Cover cloudinaryUrl:', cloudinaryUrl);
+    console.log('Cover publicId:', publicId);
+    console.log('Cover file path:', req.file.path);
+    console.log('Cover file filename:', req.file.filename);
+    
     userImage.cover = cloudinaryUrl;
     userImage.coverPublicId = publicId;
     await userImage.save();

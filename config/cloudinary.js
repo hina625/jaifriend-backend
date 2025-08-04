@@ -49,7 +49,26 @@ if (isCloudinaryConfigured) {
   const path = require('path');
   storage = multer.diskStorage({
     destination: function (req, file, cb) {
-      cb(null, 'uploads/');
+      let uploadPath = 'uploads/';
+      
+      // Create different folders for different types of uploads
+      if (file.fieldname === 'avatar') {
+        uploadPath += 'profile-photos/';
+      } else if (file.fieldname === 'cover') {
+        uploadPath += 'cover-photos/';
+      } else if (file.fieldname === 'postMedia') {
+        uploadPath += 'post-media/';
+      } else {
+        uploadPath += 'general/';
+      }
+      
+      // Create directory if it doesn't exist
+      const fs = require('fs');
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+      
+      cb(null, uploadPath);
     },
     filename: function (req, file, cb) {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
