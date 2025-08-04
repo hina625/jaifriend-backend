@@ -99,7 +99,14 @@ exports.uploadAvatar = async (req, res) => {
       const baseUrl = process.env.NODE_ENV === 'production' 
         ? 'https://jaifriend-backend-production.up.railway.app'
         : 'http://localhost:3001';
-      cloudinaryUrl = `${baseUrl}/uploads/${req.file.filename}`;
+      
+      // req.file.path for local storage will be something like 'uploads\\profile-photos\\filename.jpg'
+      // We need to convert backslashes and ensure the path is relative to the base URL's /uploads
+      const relativePath = req.file.path.replace(/\\/g, '/'); // Convert backslashes to forward slashes
+      // If req.file.path already starts with 'uploads/', just use it. Otherwise, prepend 'uploads/'
+      const finalRelativePath = relativePath.startsWith('uploads/') ? relativePath : `uploads/${relativePath}`;
+      
+      cloudinaryUrl = `${baseUrl}/${finalRelativePath}`;
       publicId = req.file.filename;
     }
     
@@ -173,7 +180,14 @@ exports.uploadCover = async (req, res) => {
       const baseUrl = process.env.NODE_ENV === 'production' 
         ? 'https://jaifriend-backend-production.up.railway.app'
         : 'http://localhost:3001';
-      cloudinaryUrl = `${baseUrl}/uploads/${req.file.filename}`;
+      
+      // req.file.path for local storage will be something like 'uploads\\cover-photos\\filename.jpg'
+      // We need to convert backslashes and ensure the path is relative to the base URL's /uploads
+      const relativePath = req.file.path.replace(/\\/g, '/'); // Convert backslashes to forward slashes
+      // If req.file.path already starts with 'uploads/', just use it. Otherwise, prepend 'uploads/'
+      const finalRelativePath = relativePath.startsWith('uploads/') ? relativePath : `uploads/${relativePath}`;
+      
+      cloudinaryUrl = `${baseUrl}/${finalRelativePath}`;
       publicId = req.file.filename;
     }
 
