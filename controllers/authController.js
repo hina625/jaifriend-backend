@@ -86,12 +86,25 @@ exports.registerUser = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ message: 'Username and password are required' });
+  const { username, email, password } = req.body;
+  if (!password) {
+    return res.status(400).json({ message: 'Password is required' });
   }
+  
+  // Check if either username or email is provided
+  if (!username && !email) {
+    return res.status(400).json({ message: 'Username or email is required' });
+  }
+  
   try {
-    const user = await User.findOne({ username });
+    // Try to find user by username or email
+    let user;
+    if (username) {
+      user = await User.findOne({ username });
+    } else if (email) {
+      user = await User.findOne({ email });
+    }
+    
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
 
     const isMatch = await bcrypt.compare(password, user.password);
