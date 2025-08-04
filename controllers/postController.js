@@ -15,6 +15,11 @@ exports.createPost = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Get user images from UserImage model
+    const UserImage = require('../models/userImage');
+    const userImage = await UserImage.findOne({ userId });
+    const userAvatar = userImage?.avatar || user.avatar || '/avatars/1.png.png';
+
     // Handle media files
     let media = [];
     if (req.files && req.files.length > 0) {
@@ -65,7 +70,7 @@ exports.createPost = async (req, res) => {
       location,
       hashtags: parsedHashtags,
       mentions,
-      user: { userId, name: user.name, avatar: user.avatar || '/avatars/1.png.png' },
+      user: { userId, name: user.name, avatar: userAvatar },
       userId
     });
 
@@ -445,8 +450,14 @@ exports.addComment = async (req, res) => {
     }
 
     const user = await User.findById(userId);
+    
+    // Get user images from UserImage model
+    const UserImage = require('../models/userImage');
+    const userImage = await UserImage.findOne({ userId });
+    const userAvatar = userImage?.avatar || user.avatar || '/avatars/1.png.png';
+    
     const comment = {
-      user: { userId, name: user.name, avatar: user.avatar },
+      user: { userId, name: user.name, avatar: userAvatar },
       text,
       createdAt: new Date()
     };

@@ -116,6 +116,11 @@ exports.uploadAvatar = async (req, res) => {
     await userImage.save();
     console.log('Saved userImage:', userImage);
 
+    // Also update the main User model to keep it synchronized
+    const User = require('../models/user');
+    await User.findByIdAndUpdate(userId, { avatar: cloudinaryUrl });
+    console.log('✅ Updated User model avatar');
+
     const response = {
       message: 'Avatar uploaded successfully',
       avatar: cloudinaryUrl
@@ -162,6 +167,11 @@ exports.uploadCover = async (req, res) => {
     userImage.cover = cloudinaryUrl;
     userImage.coverPublicId = publicId;
     await userImage.save();
+
+    // Also update the main User model to keep it synchronized
+    const User = require('../models/user');
+    await User.findByIdAndUpdate(userId, { coverPhoto: cloudinaryUrl });
+    console.log('✅ Updated User model coverPhoto');
 
     res.json({
       message: 'Cover uploaded successfully',

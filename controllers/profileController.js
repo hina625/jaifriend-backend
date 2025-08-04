@@ -68,12 +68,16 @@ exports.getMyProfile = async (req, res) => {
       post.media && post.media.some(media => media.type === 'video')
     ).length;
 
+    // Get user images from UserImage model
+    const UserImage = require('../models/userImage');
+    const userImage = await UserImage.findOne({ userId: user._id });
+    
     const profileData = {
       id: user._id,
       name: user.name || user.fullName || 'User',
       username: user.username || `@${user._id.toString().slice(-8)}`,
-      avatar: user.avatar || '/avatars/1.png.png',
-      coverPhoto: user.coverPhoto || '/covers/default-cover.jpg',
+      avatar: userImage?.avatar || user.avatar || '/avatars/1.png.png',
+      coverPhoto: userImage?.cover || user.coverPhoto || '/covers/default-cover.jpg',
       workplace: user.workplace,
       country: user.country,
       address: user.address,
