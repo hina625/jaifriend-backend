@@ -25,9 +25,10 @@ exports.getUserImages = async (req, res) => {
     
     const response = {
       avatar: userImage.avatar,
-      cover: userImage.cover
+      cover: userImage.cover,
+      userId: userId
     };
-    console.log('Sending response:', response);
+    console.log('📤 getUserImages response:', response);
     
     res.json(response);
   } catch (error) {
@@ -138,18 +139,25 @@ exports.uploadAvatar = async (req, res) => {
     userImage.avatar = cloudinaryUrl;
     userImage.avatarPublicId = publicId;
     await userImage.save();
-    console.log('Saved userImage:', userImage);
+    console.log('✅ Saved userImage:', userImage);
 
     // Also update the main User model to keep it synchronized
     const User = require('../models/user');
-    await User.findByIdAndUpdate(userId, { avatar: cloudinaryUrl });
-    console.log('✅ Updated User model avatar');
+    const updatedUser = await User.findByIdAndUpdate(userId, { avatar: cloudinaryUrl }, { new: true });
+    console.log('✅ Updated User model avatar:', updatedUser?.avatar);
+
+    // Verify the data was saved correctly
+    const verifyUserImage = await UserImage.findOne({ userId });
+    const verifyUser = await User.findById(userId);
+    console.log('✅ Verification - UserImage avatar:', verifyUserImage?.avatar);
+    console.log('✅ Verification - User avatar:', verifyUser?.avatar);
 
     const response = {
       message: 'Avatar uploaded successfully',
-      avatar: cloudinaryUrl
+      avatar: cloudinaryUrl,
+      userId: userId
     };
-    console.log('Sending response:', response);
+    console.log('📤 Sending response:', response);
 
     res.json(response);
   } catch (error) {
