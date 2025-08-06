@@ -23,6 +23,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const socialLinksRoutes = require('./routes/socialLinksRoutes');
 const verificationRoutes = require('./routes/verificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const websiteSettingsRoutes = require('./routes/websiteSettingsRoutes');
 const session = require('express-session');
 const fs = require('fs');
 const path = require('path');
@@ -127,6 +128,7 @@ app.use('/api/movies', movieRoutes);
 app.use('/api/social-links', socialLinksRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/website-settings', websiteSettingsRoutes);
 app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {

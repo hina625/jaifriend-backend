@@ -1,5 +1,6 @@
 const User = require('../models/user');
 const Post = require('../models/post');
+const Album = require('../models/album');
 const Group = require('../models/group');
 const Page = require('../models/page');
 const Game = require('../models/game');
@@ -295,6 +296,358 @@ const getMessages = async (req, res) => {
   }
 };
 
+// Verify user
+const verifyUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isVerified: true },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User verified successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Error verifying user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying user'
+    });
+  }
+};
+
+// Unverify user
+const unverifyUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isVerified: false },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User unverified successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Error unverifying user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error unverifying user'
+    });
+  }
+};
+
+// Block user
+const blockUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isBlocked: true },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User blocked successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Error blocking user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error blocking user'
+    });
+  }
+};
+
+// Unblock user
+const unblockUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isBlocked: false },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User unblocked successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Error unblocking user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error unblocking user'
+    });
+  }
+};
+
+// Delete user
+const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Also delete related data (posts, albums, etc.)
+    await Post.deleteMany({ author: userId });
+    await Album.deleteMany({ user: userId });
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting user'
+    });
+  }
+};
+
+// Bulk actions
+const bulkAction = async (req, res) => {
+  try {
+    const { action, userIds } = req.body;
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'User IDs are required'
+      });
+    }
+
+    let updateData = {};
+    let message = '';
+
+    switch (action) {
+      case 'verify':
+        updateData = { isVerified: true };
+        message = 'Users verified successfully';
+        break;
+      case 'unverify':
+        updateData = { isVerified: false };
+        message = 'Users unverified successfully';
+        break;
+      case 'block':
+        updateData = { isBlocked: true };
+        message = 'Users blocked successfully';
+        break;
+      case 'unblock':
+        updateData = { isBlocked: false };
+        message = 'Users unblocked successfully';
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid action'
+        });
+    }
+
+    const result = await User.updateMany(
+      { _id: { $in: userIds } },
+      updateData
+    );
+
+    res.json({
+      success: true,
+      message,
+      updatedCount: result.modifiedCount
+    });
+  } catch (error) {
+    console.error('Error performing bulk action:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error performing bulk action'
+    });
+  }
+};
+
+// Get user statistics
+const getUserStats = async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const onlineUsers = await User.countDocuments({ isOnline: true });
+    const verifiedUsers = await User.countDocuments({ isVerified: true });
+    const blockedUsers = await User.countDocuments({ isBlocked: true });
+
+    // New users today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const newUsersToday = await User.countDocuments({
+      createdAt: { $gte: today }
+    });
+
+    // Active users this week
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const activeUsersThisWeek = await User.countDocuments({
+      lastActive: { $gte: weekAgo }
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        totalUsers,
+        onlineUsers,
+        verifiedUsers,
+        blockedUsers,
+        newUsersToday,
+        activeUsersThisWeek
+      }
+    });
+  } catch (error) {
+    console.error('Error getting user stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user statistics'
+    });
+  }
+};
+
+// Get online users with session information
+const getOnlineUsers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const sortBy = req.query.sortBy || 'lastActive';
+    const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+
+    // Get users who are currently online (active in last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    
+    const onlineUsers = await User.find({
+      lastActive: { $gte: fiveMinutesAgo }
+    })
+    .select('-password')
+    .sort({ [sortBy]: sortOrder })
+    .skip(skip)
+    .limit(limit);
+
+    const totalOnlineUsers = await User.countDocuments({
+      lastActive: { $gte: fiveMinutesAgo }
+    });
+
+    // Enhance user data with session information
+    const enhancedUsers = onlineUsers.map(user => ({
+      _id: user._id,
+      id: user._id.toString().slice(-8), // Short ID
+      username: user.username,
+      email: user.email,
+      source: 'web', // Default source, can be enhanced with actual session data
+      ipAddress: req.ip || 'Unknown', // Get IP from request
+      status: user.isOnline ? 'online' : 'away',
+      lastActive: user.lastActive,
+      userAgent: req.headers['user-agent'] || 'Unknown',
+      sessionId: user._id.toString() // Simple session ID
+    }));
+
+    res.json({
+      success: true,
+      users: enhancedUsers,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalOnlineUsers / limit),
+        totalUsers: totalOnlineUsers,
+        hasNextPage: page * limit < totalOnlineUsers,
+        hasPrevPage: page > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error getting online users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching online users'
+    });
+  }
+};
+
+// Kick user (force logout)
+const kickUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { 
+        isOnline: false,
+        lastActive: new Date()
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User kicked successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Error kicking user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error kicking user'
+    });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getUsers,
@@ -303,5 +656,14 @@ module.exports = {
   getGroups,
   getPages,
   getGames,
-  getMessages
+  getMessages,
+  verifyUser,
+  unverifyUser,
+  blockUser,
+  unblockUser,
+  deleteUser,
+  bulkAction,
+  getUserStats,
+  getOnlineUsers,
+  kickUser
 }; 

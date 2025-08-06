@@ -483,6 +483,39 @@ exports.getUserFollowing = async (req, res) => {
   }
 };
 
+// Get current user's following (for sidebar)
+exports.getMyFollowing = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const user = await User.findById(currentUserId)
+      .populate('following', 'name avatar username bio isOnline lastSeen isVerified');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Format the data for the sidebar
+    const followingList = (user.following || []).map(followedUser => ({
+      id: followedUser._id,
+      name: followedUser.name || followedUser.fullName || 'User',
+      username: followedUser.username || `@${followedUser._id.toString().slice(-8)}`,
+      avatar: followedUser.avatar || '/avatars/1.png.png',
+      isOnline: followedUser.isOnline || false,
+      isVerified: followedUser.isVerified || false
+    }));
+
+    res.json(followingList);
+  } catch (error) {
+    console.error('Error getting current user following:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get suggested users to follow
 exports.getSuggestedUsers = async (req, res) => {
   try {

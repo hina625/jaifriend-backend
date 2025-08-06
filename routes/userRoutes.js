@@ -57,6 +57,9 @@ router.get('/:userId/followers', authMiddleware, userController.getUserFollowers
 // Get user's following
 router.get('/:userId/following', authMiddleware, userController.getUserFollowing);
 
+// Get current user's following (for sidebar)
+router.get('/following/me', authMiddleware, userController.getMyFollowing);
+
 // Toggle user verification (admin only)
 router.post('/:userId/verify', authMiddleware, userController.toggleVerification);
 
