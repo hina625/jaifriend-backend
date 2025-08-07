@@ -119,6 +119,42 @@ exports.getGroupById = async (req, res) => {
   }
 };
 
+// Get groups by user ID
+exports.getGroupsByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.userId;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    // Check if current user is blocked by target user
+    if (currentUserId) {
+      const targetUser = await User.findById(userId);
+      if (targetUser?.blockedUsers?.includes(currentUserId)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    const groups = await Group.find({
+      $or: [
+        { creator: userId },
+        { 'members.user': userId }
+      ],
+      isActive: true
+    })
+    .populate('creator', 'name username avatar')
+    .populate('members.user', 'name username avatar')
+    .sort({ createdAt: -1 });
+
+    res.json(groups);
+  } catch (error) {
+    console.error('Error getting groups by user ID:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Update group
 exports.updateGroup = async (req, res) => {
   try {

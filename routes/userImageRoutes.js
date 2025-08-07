@@ -8,7 +8,8 @@ const {
   uploadCover,
   deleteAvatar,
   deleteCover,
-  cleanupLocalhostUrls
+  cleanupLocalhostUrls,
+  getUserImagesById
 } = require('../controllers/userImageController');
 
 // Import cloud storage configuration
@@ -20,6 +21,9 @@ router.use(authMiddleware);
 // Get user images
 router.get('/', getUserImages);
 
+// Get user images by user ID (for viewing other users' profiles)
+router.get('/:userId', getUserImagesById);
+
 // Update user images (for base64 data)
 router.put('/', updateUserImages);
 
@@ -29,10 +33,10 @@ router.post('/avatar', upload.single('avatar'), uploadAvatar);
 // Upload cover image
 router.post('/cover', upload.single('cover'), uploadCover);
 
-// Delete avatar
+// Delete avatar image
 router.delete('/avatar', deleteAvatar);
 
-// Delete cover
+// Delete cover image
 router.delete('/cover', deleteCover);
 
 // Cleanup localhost URLs (admin only)

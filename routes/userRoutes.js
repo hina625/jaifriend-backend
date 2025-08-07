@@ -42,6 +42,9 @@ router.get('/:userId/posts', authMiddleware, userController.getUserPosts);
 // Get user's albums
 router.get('/:userId/albums', authMiddleware, userController.getUserAlbums);
 
+// Get user's products
+router.get('/:userId/products', authMiddleware, userController.getUserProducts);
+
 // Get user's photos
 router.get('/:userId/photos', authMiddleware, userController.getUserPhotos);
 

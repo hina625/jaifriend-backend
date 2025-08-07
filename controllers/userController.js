@@ -306,6 +306,36 @@ exports.getUserAlbums = async (req, res) => {
   }
 };
 
+// Get user's products
+exports.getUserProducts = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user?.id;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    // Check if current user is blocked by target user
+    if (currentUserId) {
+      const targetUser = await User.findById(userId);
+      if (targetUser?.blockedUsers?.includes(currentUserId)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    const Product = require('../models/product');
+    const products = await Product.find({ seller: userId })
+      .populate('seller', 'name avatar username')
+      .sort({ createdAt: -1 });
+
+    res.json(products);
+  } catch (error) {
+    console.error('Error getting user products:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get user's photos
 exports.getUserPhotos = async (req, res) => {
   try {

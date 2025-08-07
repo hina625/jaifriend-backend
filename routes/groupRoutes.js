@@ -37,6 +37,9 @@ router.get('/', auth, groupController.getGroups);
 router.get('/public', groupController.getPublicGroups);
 router.get('/search', auth, groupController.searchGroups);
 
+// Get groups by user ID
+router.get('/user/:userId', auth, groupController.getGroupsByUserId);
+
 // Parameterized routes
 router.get('/:groupId', auth, groupController.getGroupById);
 router.put('/:groupId', auth, upload.single('avatar'), groupController.updateGroup);

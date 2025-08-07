@@ -362,3 +362,41 @@ exports.cleanupLocalhostUrls = async (req, res) => {
     res.status(500).json({ error: 'Failed to cleanup localhost URLs' });
   }
 }; 
+
+// Get user images by user ID (for viewing other users' profiles)
+exports.getUserImagesById = async (req, res) => {
+  try {
+    console.log('getUserImagesById called');
+    console.log('req.params.userId:', req.params.userId);
+    
+    const userId = req.params.userId;
+    console.log('Target userId:', userId);
+    
+    let userImage = await UserImage.findOne({ userId });
+    console.log('Found userImage:', userImage);
+    
+    // If no user image record exists, return empty data
+    if (!userImage) {
+      console.log('No userImage record found for userId:', userId);
+      const response = {
+        avatar: null,
+        cover: null,
+        userId: userId
+      };
+      console.log('📤 getUserImagesById response (no data):', response);
+      return res.json(response);
+    }
+    
+    const response = {
+      avatar: userImage.avatar,
+      cover: userImage.cover,
+      userId: userId
+    };
+    console.log('📤 getUserImagesById response:', response);
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching user images by ID:', error);
+    res.status(500).json({ error: 'Failed to fetch user images' });
+  }
+}; 
