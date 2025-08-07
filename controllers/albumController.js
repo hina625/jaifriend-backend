@@ -349,18 +349,53 @@ exports.addComment = async (req, res) => {
 // Delete comment from album
 exports.deleteComment = async (req, res) => {
   try {
-    const album = await Album.findById(req.params.id);
-    if (!album) return res.status(404).json({ message: 'Album not found' });
-    const commentId = req.params.commentId;
+    const { id: albumId, commentId } = req.params;
+    const userId = req.userId;
+
+    console.log('🗑️ Deleting album comment:', { albumId, commentId, userId });
+
+    const album = await Album.findById(albumId);
+    if (!album) {
+      console.log('❌ Album not found:', albumId);
+      return res.status(404).json({ message: 'Album not found' });
+    }
+
     const comment = album.comments.id(commentId);
-    if (!comment) return res.status(404).json({ message: 'Comment not found' });
-    if (String(comment.user) !== String(req.userId) && String(album.user) !== String(req.userId)) {
+    if (!comment) {
+      console.log('❌ Comment not found:', commentId);
+      return res.status(404).json({ message: 'Comment not found' });
+    }
+
+    console.log('🔍 Comment user ID:', comment.user.toString());
+    console.log('🔍 Current user ID:', userId);
+    console.log('🔍 Album user ID:', album.user.toString());
+
+    // Check if user is comment author or album owner
+    if (String(comment.user) !== String(userId) && String(album.user) !== String(userId)) {
+      console.log('❌ Unauthorized to delete comment');
       return res.status(403).json({ message: 'Unauthorized to delete this comment' });
     }
+
     album.comments.pull(commentId);
     await album.save();
-    res.json({ message: 'Comment deleted successfully' });
+
+    console.log('✅ Comment removed, saving album...');
+
+    // Populate the album with user info before sending response
+    await album.populate('user', 'name avatar username');
+    await album.populate('comments.user', 'name avatar');
+    await album.populate('likes', 'name avatar');
+    await album.populate('savedBy', 'name avatar');
+    await album.populate('reactions.user', 'name avatar');
+
+    console.log('✅ Album populated, sending response');
+
+    res.json({ 
+      message: 'Comment deleted successfully',
+      album: album
+    });
   } catch (err) {
+    console.error('❌ Error deleting album comment:', err);
     res.status(500).json({ message: 'Error deleting comment', error: err.message });
   }
 };

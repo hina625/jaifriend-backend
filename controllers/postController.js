@@ -569,31 +569,51 @@ exports.editPost = async (req, res) => {
 // Delete a comment from a post
 exports.deleteComment = async (req, res) => {
   try {
-    const { postId, commentId } = req.params;
+    const { id: postId, commentId } = req.params;
     const userId = req.userId;
+
+    console.log('🗑️ Deleting comment:', { postId, commentId, userId });
 
     const post = await Post.findById(postId);
     if (!post) {
+      console.log('❌ Post not found:', postId);
       return res.status(404).json({ message: 'Post not found' });
     }
 
     const comment = post.comments.id(commentId);
     if (!comment) {
+      console.log('❌ Comment not found:', commentId);
       return res.status(404).json({ message: 'Comment not found' });
     }
 
+    console.log('🔍 Comment user ID:', comment.user.userId.toString());
+    console.log('🔍 Current user ID:', userId);
+
     if (comment.user.userId.toString() !== userId) {
+      console.log('❌ Unauthorized to delete comment');
       return res.status(403).json({ message: 'Not authorized to delete this comment' });
     }
 
-    comment.remove();
+    post.comments.pull(commentId);
     await post.save();
+
+    console.log('✅ Comment removed, saving post...');
+
+    // Populate the post with user info before sending response
+    await post.populate('user.userId', 'name avatar username');
+    await post.populate('comments.user.userId', 'name avatar');
+    await post.populate('likes', 'name avatar');
+    await post.populate('savedBy', 'name avatar');
+    await post.populate('views', 'name avatar');
+
+    console.log('✅ Post populated, sending response');
 
     res.json({ 
       message: 'Comment deleted successfully',
-      commentsCount: post.comments.length
+      post: post
     });
   } catch (err) {
+    console.error('❌ Error deleting comment:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -602,20 +622,21 @@ exports.deleteComment = async (req, res) => {
 exports.sharePost = async (req, res) => {
   try {
     const { id } = req.params;
-    const { message, shareTo, shareOnTimeline, shareToPage, shareToGroup } = req.body;
+    const { message, shareTo, shareOnTimeline, shareToPage, shareToGroup, socialPlatforms } = req.body;
     const userId = req.userId;
 
-    console.log('Post share request:', {
+    console.log('📤 Post share request:', {
       postId: id,
       userId,
       message,
       shareTo,
       shareOnTimeline,
       shareToPage,
-      shareToGroup
+      shareToGroup,
+      socialPlatforms
     });
 
-    const originalPost = await Post.findById(id).populate('user', 'name avatar');
+    const originalPost = await Post.findById(id).populate('user.userId', 'name avatar username');
     if (!originalPost) {
       return res.status(404).json({ message: 'Post not found' });
     }
@@ -628,43 +649,74 @@ exports.sharePost = async (req, res) => {
 
     let sharedPosts = [];
     let shareCount = 0;
+    let shareResults = [];
 
     // Share on timeline
     if (shareOnTimeline) {
-      const timelinePost = new Post({
-        content: message || `Shared: ${originalPost.content}`,
-        isShared: true,
-        originalPost: originalPost._id,
-        user: userId,
-        userId,
-        privacy: shareTo === 'public' ? 'public' : 'friends',
-        shareMessage: message,
-        sharedFrom: {
-          postId: originalPost._id,
-          userId: originalPost.user?.userId,
-          userName: originalPost.user?.name || 'Unknown User',
-          userAvatar: originalPost.user?.avatar || '/avatars/1.png.png',
-          postContent: originalPost.content,
-          postMedia: originalPost.media
-        }
-      });
-      
-      await timelinePost.save();
-      sharedPosts.push(timelinePost);
-      shareCount++;
-      console.log('Post shared to timeline as new post:', timelinePost._id);
+      try {
+        const timelinePost = new Post({
+          content: message || `Shared: ${originalPost.content}`,
+          isShared: true,
+          originalPost: originalPost._id,
+          user: {
+            name: currentUser.name,
+            avatar: currentUser.avatar || '/avatars/1.png.png',
+            userId: currentUser._id
+          },
+          userId: currentUser._id,
+          privacy: shareTo === 'public' ? 'public' : 'friends',
+          shareMessage: message,
+          sharedFrom: {
+            postId: originalPost._id,
+            userId: originalPost.user?.userId,
+            userName: originalPost.user?.name || 'Unknown User',
+            userAvatar: originalPost.user?.avatar || '/avatars/1.png.png',
+            postContent: originalPost.content,
+            postMedia: originalPost.media
+          },
+          media: originalPost.media // Include original media in shared post
+        });
+        
+        await timelinePost.save();
+        sharedPosts.push(timelinePost);
+        shareCount++;
+        shareResults.push('Timeline');
+        console.log('✅ Post shared to timeline:', timelinePost._id);
+      } catch (error) {
+        console.error('❌ Error sharing to timeline:', error);
+        shareResults.push('Timeline (failed)');
+      }
     }
 
     // Share to page (if implemented)
     if (shareToPage) {
-      // TODO: Implement page sharing
-      console.log('Page sharing not yet implemented');
+      try {
+        // TODO: Implement page sharing
+        console.log('📄 Page sharing not yet implemented');
+        shareResults.push('Page (not implemented)');
+      } catch (error) {
+        console.error('❌ Error sharing to page:', error);
+        shareResults.push('Page (failed)');
+      }
     }
 
     // Share to group (if implemented)
     if (shareToGroup) {
-      // TODO: Implement group sharing
-      console.log('Group sharing not yet implemented');
+      try {
+        // TODO: Implement group sharing
+        console.log('👥 Group sharing not yet implemented');
+        shareResults.push('Group (not implemented)');
+      } catch (error) {
+        console.error('❌ Error sharing to group:', error);
+        shareResults.push('Group (failed)');
+      }
+    }
+
+    // Handle social media sharing
+    if (socialPlatforms && socialPlatforms.length > 0) {
+      socialPlatforms.forEach(platform => {
+        shareResults.push(`${platform} (external)`);
+      });
     }
 
     // Add user to original post's shares array if not already there
@@ -675,22 +727,36 @@ exports.sharePost = async (req, res) => {
 
     // Create notification for original post owner
     if (originalPost.user?.userId?.toString() !== userId.toString()) {
-      const { createNotification } = require('./notificationController');
-      
-      await createNotification({
-        userId: originalPost.user?.userId,
-        type: 'share',
-        title: 'Post Shared',
-        message: `${currentUser.name} shared your post`,
-        relatedUserId: userId,
-        relatedPostId: originalPost._id
-      });
+      try {
+        const { createNotification } = require('./notificationController');
+        
+        await createNotification({
+          userId: originalPost.user?.userId,
+          type: 'share',
+          title: 'Post Shared',
+          message: `${currentUser.name} shared your post`,
+          relatedUserId: userId,
+          relatedPostId: originalPost._id
+        });
+      } catch (error) {
+        console.error('❌ Error creating notification:', error);
+      }
     }
 
-    console.log('Post share completed successfully:', {
+    // Populate shared posts for response
+    for (let post of sharedPosts) {
+      await post.populate('user.userId', 'name avatar username');
+      await post.populate('comments.user.userId', 'name avatar');
+      await post.populate('likes', 'name avatar');
+      await post.populate('savedBy', 'name avatar');
+      await post.populate('views', 'name avatar');
+    }
+
+    console.log('✅ Post share completed successfully:', {
       postId: originalPost._id,
       sharesCount: originalPost.shares.length,
-      sharedPostsCount: sharedPosts.length
+      sharedPostsCount: sharedPosts.length,
+      shareResults
     });
 
     res.json({ 
@@ -699,10 +765,11 @@ exports.sharePost = async (req, res) => {
       shares: originalPost.shares,
       shared: true,
       shareCount,
+      shareResults,
       message: `Post shared successfully to ${shareCount} location${shareCount !== 1 ? 's' : ''}`
     });
   } catch (err) {
-    console.error('Share post error:', err);
+    console.error('❌ Share post error:', err);
     res.status(500).json({ message: 'Error sharing post', error: err.message });
   }
 };

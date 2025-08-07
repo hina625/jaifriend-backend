@@ -35,24 +35,20 @@ router.get('/most-engaged', postController.getMostEngagedPost);
 
 router.post('/', auth, upload.array('media', 10), postController.createPost); // Support multiple files
 router.post('/single', auth, upload.single('media'), postController.createPost); // Backward compatibility
-router.delete('/:id', auth, postController.deletePost);
+
+// Comment routes (must come before /:id routes to avoid conflicts)
+router.post('/:id/comment', auth, postController.addComment);
+router.delete('/:id/comment/:commentId', auth, postController.deleteComment);
+
+// Post action routes
 router.post('/:id/like', auth, postController.toggleLike);
 router.post('/:id/reaction', auth, postController.addReaction);
 router.post('/:id/save', auth, postController.toggleSave);
-
-// Add comment to a post
-router.post('/:id/comment', auth, postController.addComment);
-
-// Edit a post
-router.put('/:id', auth, upload.array('media', 10), postController.editPost);
-
-// Delete a comment from a post
-router.delete('/:postId/comment/:commentId', auth, postController.deleteComment);
-
-// Share post
 router.post('/:id/share', auth, postController.sharePost);
-
-// Add view to post
 router.post('/:id/view', auth, postController.addView);
+
+// Post CRUD routes
+router.delete('/:id', auth, postController.deletePost);
+router.put('/:id', auth, upload.array('media', 10), postController.editPost);
 
 module.exports = router;
