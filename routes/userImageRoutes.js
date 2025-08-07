@@ -7,7 +7,8 @@ const {
   uploadAvatar,
   uploadCover,
   deleteAvatar,
-  deleteCover
+  deleteCover,
+  cleanupLocalhostUrls
 } = require('../controllers/userImageController');
 
 // Import cloud storage configuration
@@ -33,5 +34,8 @@ router.delete('/avatar', deleteAvatar);
 
 // Delete cover
 router.delete('/cover', deleteCover);
+
+// Cleanup localhost URLs (admin only)
+router.post('/cleanup-localhost', cleanupLocalhostUrls);
 
 module.exports = router; 

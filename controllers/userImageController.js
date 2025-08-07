@@ -101,14 +101,14 @@ exports.uploadAvatar = async (req, res) => {
         ? 'https://jaifriend-backend-production.up.railway.app'
         : 'http://localhost:3001';
       
-      // req.file.path for local storage will be something like 'uploads\\profile-photos\\filename.jpg'
-      // We need to convert backslashes and ensure the path is relative to the base URL's /uploads
-      const relativePath = req.file.path.replace(/\\/g, '/'); // Convert backslashes to forward slashes
-      // If req.file.path already starts with 'uploads/', just use it. Otherwise, prepend 'uploads/'
-      const finalRelativePath = relativePath.startsWith('uploads/') ? relativePath : `uploads/${relativePath}`;
+      // Extract just the filename from the path
+      const filename = req.file.filename;
+      cloudinaryUrl = `${baseUrl}/uploads/profile-photos/${filename}`;
+      publicId = filename;
       
-      cloudinaryUrl = `${baseUrl}/${finalRelativePath}`;
-      publicId = req.file.filename;
+      console.log('📁 Local storage - Base URL:', baseUrl);
+      console.log('📁 Local storage - Filename:', filename);
+      console.log('📁 Local storage - Final URL:', cloudinaryUrl);
     }
     
     console.log('cloudinaryUrl:', cloudinaryUrl);
@@ -298,5 +298,67 @@ exports.deleteCover = async (req, res) => {
   } catch (error) {
     console.error('Error deleting cover:', error);
     res.status(500).json({ error: 'Failed to delete cover' });
+  }
+}; 
+
+// Clean up localhost URLs in database
+exports.cleanupLocalhostUrls = async (req, res) => {
+  try {
+    console.log('🧹 Starting localhost URL cleanup...');
+    
+    const UserImage = require('../models/userImage');
+    const User = require('../models/user');
+    
+    // Find all user images with localhost URLs
+    const userImages = await UserImage.find({
+      $or: [
+        { avatar: { $regex: /localhost:3000/ } },
+        { cover: { $regex: /localhost:3000/ } }
+      ]
+    });
+    
+    console.log(`📊 Found ${userImages.length} user images with localhost URLs`);
+    
+    let updatedCount = 0;
+    
+    for (const userImage of userImages) {
+      let updated = false;
+      
+      // Fix avatar URL
+      if (userImage.avatar && userImage.avatar.includes('localhost:3000')) {
+        userImage.avatar = userImage.avatar.replace('http://localhost:3000', 'https://jaifriend-backend-production.up.railway.app');
+        updated = true;
+        console.log(`🖼️ Fixed avatar URL for user ${userImage.userId}`);
+      }
+      
+      // Fix cover URL
+      if (userImage.cover && userImage.cover.includes('localhost:3000')) {
+        userImage.cover = userImage.cover.replace('http://localhost:3000', 'https://jaifriend-backend-production.up.railway.app');
+        updated = true;
+        console.log(`🖼️ Fixed cover URL for user ${userImage.userId}`);
+      }
+      
+      if (updated) {
+        await userImage.save();
+        updatedCount++;
+        
+        // Also update User model
+        await User.findByIdAndUpdate(userImage.userId, {
+          avatar: userImage.avatar
+        });
+      }
+    }
+    
+    console.log(`✅ Cleanup completed: ${updatedCount} records updated`);
+    
+    res.json({
+      message: 'Localhost URL cleanup completed',
+      totalFound: userImages.length,
+      updatedCount: updatedCount
+    });
+    
+  } catch (error) {
+    console.error('❌ Error during localhost URL cleanup:', error);
+    res.status(500).json({ error: 'Failed to cleanup localhost URLs' });
   }
 }; 
