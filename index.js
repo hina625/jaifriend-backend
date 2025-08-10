@@ -88,7 +88,7 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
-// Request logging middleware for debugging
+// Request logging middleware for debugging (keep this for now)
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.originalUrl} - Content-Type: ${req.headers['content-type']}`);
   next();
@@ -122,13 +122,6 @@ try {
   console.error('❌ Error loading auth routes:', error);
 }
 
-// Add a catch-all for auth routes to see what's happening
-app.all('/api/auth/*', (req, res, next) => {
-  console.log(`🚨 ALL method caught for auth: ${req.method} ${req.originalUrl}`);
-  console.log(`🚨 This should not happen if routes are working properly`);
-  next();
-});
-
 // Mount all other routes AFTER auth routes
 app.use('/api/users', userRoutes);
 app.use('/api/userimages', userImageRoutes);
@@ -158,27 +151,7 @@ app.get('/', (req, res) => {
   res.send('API is running 🚀');
 });
 
-// Test route to verify routing is working
-app.post('/test', (req, res) => {
-  res.json({ 
-    message: 'Test POST route working', 
-    method: req.method, 
-    url: req.url,
-    body: req.body,
-    headers: req.headers
-  });
-});
-
-// Test auth-like route to see if the issue is with /api/auth specifically
-app.post('/api/test', (req, res) => {
-  res.json({ 
-    message: 'Test /api/ route working', 
-    method: req.method, 
-    url: req.url,
-    body: req.body,
-    headers: req.headers
-  });
-});
+// Test routes removed - no longer needed
 
 
 
