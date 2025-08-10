@@ -61,15 +61,16 @@ const postMediaDir = path.join(uploadsDir, 'post-media');
 
 const app = express();
 
-// Force HTTPS in production
-if (process.env.NODE_ENV === 'production') {
-  app.use((req, res, next) => {
-    if (req.headers['x-forwarded-proto'] !== 'https') {
-      return res.redirect(`https://${req.headers.host}${req.url}`);
-    }
-    next();
-  });
-}
+// Force HTTPS in production - Commented out for Railway deployment
+// Railway handles HTTPS automatically, so we don't need this redirect
+// if (process.env.NODE_ENV === 'production') {
+//   app.use((req, res, next) => {
+//     if (req.headers['x-forwarded-proto'] !== 'https') {
+//       return res.redirect(`https://${req.headers.host}${req.url}`);
+//     }
+//     next();
+//   });
+// }
 
 // CORS configuration - must come before other middleware
 const cors = require('cors');
@@ -86,6 +87,17 @@ app.use(cors({
 
 // Handle preflight requests
 app.options('*', cors());
+
+// Request logging middleware for debugging
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.originalUrl} - Headers:`, {
+    'content-type': req.headers['content-type'],
+    'user-agent': req.headers['user-agent'],
+    'origin': req.headers['origin'],
+    'x-forwarded-proto': req.headers['x-forwarded-proto']
+  });
+  next();
+});
 
 // IMPORTANT: Middleware for parsing JSON
 app.use(express.json());
