@@ -113,12 +113,17 @@ app.use(passport.session());
 
 // Add error handling for route loading
 try {
-  app.use('/api/auth', authRoutes);
+  // Add logging middleware specifically for auth routes
+  app.use('/api/auth', (req, res, next) => {
+    console.log(`🔐 Auth route accessed: ${req.method} ${req.originalUrl}`);
+    next();
+  }, authRoutes);
   console.log('✅ Auth routes loaded successfully');
 } catch (error) {
   console.error('❌ Error loading auth routes:', error);
 }
-app.use('/api/user', authRoutes); // Use same routes for user endpoints
+// Commented out duplicate route mounting to avoid conflicts
+// app.use('/api/user', authRoutes); // Use same routes for user endpoints
 app.use('/api/users', userRoutes);
 app.use('/api/userimages', userImageRoutes);
 app.use('/api/posts', postRoutes);
@@ -147,11 +152,23 @@ app.get('/', (req, res) => {
   res.send('API is running 🚀');
 });
 
+// Test route to verify routing is working
+app.post('/test', (req, res) => {
+  res.json({ message: 'Test POST route working', method: req.method, url: req.url });
+});
+
 
 
 // Add 404 handler
 app.use('*', (req, res) => {
   console.log('404 - Route not found:', req.method, req.originalUrl);
+  console.log('🔍 Request details:', {
+    method: req.method,
+    url: req.originalUrl,
+    path: req.path,
+    baseUrl: req.baseUrl,
+    headers: req.headers
+  });
   res.status(404).json({ 
     message: 'Route not found', 
     method: req.method, 
