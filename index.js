@@ -88,16 +88,7 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
-// Request logging middleware for debugging
-app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.originalUrl} - Headers:`, {
-    'content-type': req.headers['content-type'],
-    'user-agent': req.headers['user-agent'],
-    'origin': req.headers['origin'],
-    'x-forwarded-proto': req.headers['x-forwarded-proto']
-  });
-  next();
-});
+
 
 // IMPORTANT: Middleware for parsing JSON
 app.use(express.json());
@@ -113,11 +104,7 @@ app.use(passport.session());
 
 // Add error handling for route loading
 try {
-  // Add logging middleware specifically for auth routes
-  app.use('/api/auth', (req, res, next) => {
-    console.log(`🔐 Auth route accessed: ${req.method} ${req.originalUrl}`);
-    next();
-  }, authRoutes);
+  app.use('/api/auth', authRoutes);
   console.log('✅ Auth routes loaded successfully');
 } catch (error) {
   console.error('❌ Error loading auth routes:', error);
@@ -152,37 +139,17 @@ app.get('/', (req, res) => {
   res.send('API is running 🚀');
 });
 
-// Test route to verify routing is working
-app.post('/test', (req, res) => {
-  res.json({ message: 'Test POST route working', method: req.method, url: req.url });
-});
+
 
 
 
 // Add 404 handler
 app.use('*', (req, res) => {
   console.log('404 - Route not found:', req.method, req.originalUrl);
-  console.log('🔍 Request details:', {
-    method: req.method,
-    url: req.originalUrl,
-    path: req.path,
-    baseUrl: req.baseUrl,
-    headers: req.headers
-  });
   res.status(404).json({ 
     message: 'Route not found', 
     method: req.method, 
-    url: req.originalUrl,
-    availableRoutes: [
-      '/api/auth/login',
-      '/api/auth/register',
-      '/api/posts',
-      '/api/albums',
-      '/api/users',
-      '/api/groups',
-      '/api/events',
-      '/api/videos'
-    ]
+    url: req.originalUrl
   });
 });
 
