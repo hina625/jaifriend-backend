@@ -88,6 +88,12 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
+// Request logging middleware for debugging
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.originalUrl} - Content-Type: ${req.headers['content-type']}`);
+  next();
+});
+
 
 
 // IMPORTANT: Middleware for parsing JSON
@@ -102,15 +108,28 @@ app.use(session({
  app.use(passport.initialize());
 app.use(passport.session());
 
-// Add error handling for route loading
+// Mount auth routes FIRST, before other routes
 try {
-  app.use('/api/auth', authRoutes);
+  // Add logging middleware specifically for auth routes
+  app.use('/api/auth', (req, res, next) => {
+    console.log(`🔐 Auth route accessed: ${req.method} ${req.originalUrl}`);
+    console.log(`📋 Request headers:`, req.headers);
+    console.log(`📦 Request body:`, req.body);
+    next();
+  }, authRoutes);
   console.log('✅ Auth routes loaded successfully');
 } catch (error) {
   console.error('❌ Error loading auth routes:', error);
 }
-// Commented out duplicate route mounting to avoid conflicts
-// app.use('/api/user', authRoutes); // Use same routes for user endpoints
+
+// Add a catch-all for auth routes to see what's happening
+app.all('/api/auth/*', (req, res, next) => {
+  console.log(`🚨 ALL method caught for auth: ${req.method} ${req.originalUrl}`);
+  console.log(`🚨 This should not happen if routes are working properly`);
+  next();
+});
+
+// Mount all other routes AFTER auth routes
 app.use('/api/users', userRoutes);
 app.use('/api/userimages', userImageRoutes);
 app.use('/api/posts', postRoutes);
@@ -139,6 +158,28 @@ app.get('/', (req, res) => {
   res.send('API is running 🚀');
 });
 
+// Test route to verify routing is working
+app.post('/test', (req, res) => {
+  res.json({ 
+    message: 'Test POST route working', 
+    method: req.method, 
+    url: req.url,
+    body: req.body,
+    headers: req.headers
+  });
+});
+
+// Test auth-like route to see if the issue is with /api/auth specifically
+app.post('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Test /api/ route working', 
+    method: req.method, 
+    url: req.url,
+    body: req.body,
+    headers: req.headers
+  });
+});
+
 
 
 
@@ -146,6 +187,14 @@ app.get('/', (req, res) => {
 // Add 404 handler
 app.use('*', (req, res) => {
   console.log('404 - Route not found:', req.method, req.originalUrl);
+  console.log('🔍 Full request details:', {
+    method: req.method,
+    url: req.originalUrl,
+    path: req.path,
+    baseUrl: req.baseUrl,
+    headers: req.headers,
+    body: req.body
+  });
   res.status(404).json({ 
     message: 'Route not found', 
     method: req.method, 
