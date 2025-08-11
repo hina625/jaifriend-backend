@@ -1,10 +1,11 @@
 const Notification = require('../models/notification');
 const User = require('../models/user');
+const mongoose = require('mongoose');
 
 // Get user's notification settings
 const getNotificationSettings = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
 
     // Get user's notification settings from user document
     const user = await User.findById(userId).select('notificationSettings');
@@ -49,7 +50,7 @@ const getNotificationSettings = async (req, res) => {
 // Update user's notification settings
 const updateNotificationSettings = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const settings = req.body;
 
     // Validate settings
@@ -105,7 +106,7 @@ const updateNotificationSettings = async (req, res) => {
 // Get user's notifications
 const getUserNotifications = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
@@ -188,7 +189,7 @@ const getUserNotifications = async (req, res) => {
 // Mark notification as read
 const markNotificationAsRead = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const { notificationId } = req.params;
 
     const notification = await Notification.findOneAndUpdate(
@@ -227,7 +228,7 @@ const markNotificationAsRead = async (req, res) => {
 // Mark all notifications as read
 const markAllNotificationsAsRead = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
 
     const result = await Notification.updateMany(
       {
@@ -259,7 +260,7 @@ const markAllNotificationsAsRead = async (req, res) => {
 // Delete notification
 const deleteNotification = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const { notificationId } = req.params;
 
     const notification = await Notification.findOneAndDelete({
@@ -291,7 +292,7 @@ const deleteNotification = async (req, res) => {
 // Get notification statistics
 const getNotificationStats = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
 
     const [totalCount, unreadCount, todayCount] = await Promise.all([
       Notification.countDocuments({ userId }),

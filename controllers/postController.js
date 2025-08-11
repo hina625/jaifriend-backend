@@ -3,6 +3,13 @@ const User = require('../models/user');
 const Notification = require('../models/notification');
 const mongoose = require('mongoose');
 
+// Helper function to construct full URLs with proper slash handling
+const constructFullUrl = (baseUrl, path) => {
+  if (!path) return path;
+  if (path.startsWith('http')) return path;
+  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+};
+
 // Create a new post
 exports.createPost = async (req, res) => {
   try {
@@ -117,7 +124,7 @@ exports.getAllPosts = async (req, res) => {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            const fullUrl = `${baseUrl}${media.url}`;
+            const fullUrl = constructFullUrl(baseUrl, media.url);
             console.log(`🔗 Converting media URL: ${media.url} -> ${fullUrl}`);
             media.url = fullUrl;
           }
@@ -125,7 +132,7 @@ exports.getAllPosts = async (req, res) => {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            const fullUrl = `${baseUrl}${media.thumbnail}`;
+            const fullUrl = constructFullUrl(baseUrl, media.thumbnail);
             console.log(`🔗 Converting thumbnail URL: ${media.thumbnail} -> ${fullUrl}`);
             media.thumbnail = fullUrl;
           }
@@ -173,7 +180,7 @@ exports.getUserPosts = async (req, res) => {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            const fullUrl = `${baseUrl}${media.url}`;
+            const fullUrl = constructFullUrl(baseUrl, media.url);
             console.log(`🔗 Converting media URL: ${media.url} -> ${fullUrl}`);
             media.url = fullUrl;
           }
@@ -181,7 +188,7 @@ exports.getUserPosts = async (req, res) => {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            const fullUrl = `${baseUrl}${media.thumbnail}`;
+            const fullUrl = constructFullUrl(baseUrl, media.thumbnail);
             console.log(`🔗 Converting thumbnail URL: ${media.thumbnail} -> ${fullUrl}`);
             media.thumbnail = fullUrl;
           }
@@ -238,13 +245,13 @@ exports.getPostsByUserId = async (req, res) => {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            media.url = `${baseUrl}${media.url}`;
+            media.url = constructFullUrl(baseUrl, media.url);
           }
           if (media.thumbnail && !media.thumbnail.startsWith('http')) {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            media.thumbnail = `${baseUrl}${media.thumbnail}`;
+            media.thumbnail = constructFullUrl(baseUrl, media.thumbnail);
           }
           return media;
         });
