@@ -588,8 +588,10 @@ exports.deleteComment = async (req, res) => {
 
     console.log('🔍 Comment user ID:', comment.user.userId.toString());
     console.log('🔍 Current user ID:', userId);
+    console.log('🔍 Post user ID:', post.user.userId.toString());
 
-    if (comment.user.userId.toString() !== userId) {
+    // Allow comment author OR post owner to delete comment
+    if (comment.user.userId.toString() !== userId && post.user.userId.toString() !== userId) {
       console.log('❌ Unauthorized to delete comment');
       return res.status(403).json({ message: 'Not authorized to delete this comment' });
     }
@@ -666,25 +668,22 @@ exports.sharePost = async (req, res) => {
           userId: currentUser._id,
           privacy: shareTo === 'public' ? 'public' : 'friends',
           shareMessage: message,
+          // Add original post media to shared post
+          media: originalPost.media || [],
           sharedFrom: {
             postId: originalPost._id,
             userId: originalPost.user?.userId,
-            userName: originalPost.user?.name || 'Unknown User',
-            userAvatar: originalPost.user?.avatar || '/avatars/1.png.png',
-            postContent: originalPost.content,
-            postMedia: originalPost.media
-          },
-          media: originalPost.media // Include original media in shared post
+            userName: originalPost.user?.name,
+            userAvatar: originalPost.user?.avatar
+          }
         });
         
         await timelinePost.save();
         sharedPosts.push(timelinePost);
         shareCount++;
-        shareResults.push('Timeline');
-        console.log('✅ Post shared to timeline:', timelinePost._id);
-      } catch (error) {
-        console.error('❌ Error sharing to timeline:', error);
-        shareResults.push('Timeline (failed)');
+        console.log('Post shared to timeline:', timelinePost._id);
+      } catch (postError) {
+        console.error('Error creating timeline post:', postError);
       }
     }
 

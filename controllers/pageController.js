@@ -54,9 +54,13 @@ exports.createPage = async (req, res) => {
 // Get all pages
 exports.getPages = async (req, res) => {
   try {
+    console.log('🔍 Get pages request:', { userId: req.userId, user: req.user });
+    
     const pages = await Page.find()
       .populate('createdBy', 'name username avatar')
       .sort({ createdAt: -1 });
+    
+    console.log('🔍 Found pages:', pages.length);
     
     // If user is authenticated, add like information
     if (req.userId) {
@@ -66,6 +70,7 @@ exports.getPages = async (req, res) => {
         pageObj.likes = page.likes ? page.likes.length : 0;
         return pageObj;
       });
+      console.log('🔍 Returning pages with likes for authenticated user');
       res.json(pagesWithLikes);
     } else {
       // For non-authenticated users, just return pages with like counts
@@ -75,12 +80,13 @@ exports.getPages = async (req, res) => {
         pageObj.isLiked = false;
         return pageObj;
       });
+      console.log('🔍 Returning pages with counts for non-authenticated user');
       res.json(pagesWithCounts);
     }
     
-    console.log('Pages fetched:', pages.length);
+    console.log('✅ Pages fetched successfully:', pages.length);
   } catch (err) {
-    console.error('Error fetching pages:', err);
+    console.error('❌ Error fetching pages:', err);
     res.status(500).json({ error: err.message });
   }
 };

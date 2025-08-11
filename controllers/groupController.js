@@ -77,9 +77,16 @@ exports.getGroups = async (req, res) => {
 // Get public groups
 exports.getPublicGroups = async (req, res) => {
   try {
+    console.log('🔍 Get public groups request:', { userId: req.userId, user: req.user });
+    
     const groups = await Group.getPublicGroups();
+    
+    console.log('🔍 Found public groups:', groups.length);
+    console.log('✅ Public groups fetched successfully');
+    
     res.json(groups);
   } catch (error) {
+    console.error('❌ Error getting public groups:', error);
     res.status(500).json({ error: error.message });
   }
 };

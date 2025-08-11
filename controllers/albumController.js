@@ -242,16 +242,27 @@ exports.shareAlbum = async (req, res) => {
             avatar: currentUser.avatar || '/avatars/1.png.png',
             userId: userId
           },
+          userId: userId,
           privacy: shareTo === 'public' ? 'public' : 'friends',
           shareMessage: message,
           sharedFrom: {
             albumId: originalAlbum._id,
-            userId: originalAlbum.user._id, // Fixed: use user._id instead of userId
+            userId: originalAlbum.user._id,
             userName: originalAlbum.user?.name || 'Unknown User',
             userAvatar: originalAlbum.user?.avatar || '/avatars/1.png.png',
             albumName: originalAlbum.name,
             albumMedia: originalAlbum.media
-          }
+          },
+          // Add album media to the shared post for preview
+          media: originalAlbum.media.slice(0, 3).map(media => ({
+            url: media.url,
+            type: media.type,
+            thumbnail: media.url,
+            originalName: `Album Media`,
+            size: 0,
+            mimetype: media.type === 'video' ? 'video/*' : 'image/*',
+            uploadedAt: new Date()
+          }))
         });
         
         await timelinePost.save();

@@ -8,6 +8,8 @@ exports.getUserById = async (req, res) => {
     const { id } = req.params;
     const currentUserId = req.user?.id;
 
+    console.log('👤 Get user by ID request:', { targetUserId: id, currentUserId });
+
     if (!id) {
       return res.status(400).json({ error: 'User ID is required' });
     }
@@ -21,6 +23,12 @@ exports.getUserById = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log('👤 User found:', { 
+      name: user.name || user.fullName, 
+      followingCount: user.following?.length || 0,
+      followersCount: user.followers?.length || 0
+    });
+
     // Check if current user is following this user
     let isFollowing = false;
     let isBlocked = false;
@@ -29,6 +37,8 @@ exports.getUserById = async (req, res) => {
       const currentUser = await User.findById(currentUserId);
       isFollowing = currentUser?.following?.includes(id) || false;
       isBlocked = currentUser?.blockedUsers?.includes(id) || false;
+      
+      console.log('👤 Current user status:', { isFollowing, isBlocked });
     }
 
     // Get user's posts count
@@ -78,9 +88,16 @@ exports.getUserById = async (req, res) => {
       followersList: user.followers || []
     };
 
+    console.log('👤 Returning user data:', { 
+      followingCount: userData.following,
+      followersCount: userData.followers,
+      followingListLength: userData.followingList.length,
+      followersListLength: userData.followersList.length
+    });
+
     res.json(userData);
   } catch (error) {
-    console.error('Error getting user:', error);
+    console.error('❌ Error getting user:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -90,6 +107,8 @@ exports.followUser = async (req, res) => {
   try {
     const currentUserId = req.user?.id;
     const { userId } = req.params;
+
+    console.log('🔗 Follow/Unfollow request:', { currentUserId, targetUserId: userId });
 
     if (!currentUserId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -110,19 +129,26 @@ exports.followUser = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log('🔗 Current user following:', currentUser.following);
+    console.log('🔗 Target user followers:', targetUser.followers);
+
     const isFollowing = currentUser.following.includes(userId);
 
     if (isFollowing) {
       // Unfollow
+      console.log('🔗 Unfollowing user...');
       await User.findByIdAndUpdate(currentUserId, {
         $pull: { following: userId }
       });
       await User.findByIdAndUpdate(userId, {
         $pull: { followers: currentUserId }
       });
+      
+      console.log('🔗 User unfollowed successfully');
       res.json({ message: 'Unfollowed successfully', isFollowing: false, currentUserId });
     } else {
       // Follow
+      console.log('🔗 Following user...');
       await User.findByIdAndUpdate(currentUserId, {
         $addToSet: { following: userId }
       });
@@ -130,21 +156,30 @@ exports.followUser = async (req, res) => {
         $addToSet: { followers: currentUserId }
       });
       
-      // Create notification for the user being followed
-      const { createNotification } = require('./notificationController');
+      console.log('🔗 User followed successfully');
       
-      await createNotification({
-        userId: userId,
-        type: 'follow',
-        title: 'New Follower',
-        message: `${currentUser.name} started following you`,
-        relatedUserId: currentUserId
-      });
+      // Create notification for the user being followed
+      try {
+        const { createNotification } = require('./notificationController');
+        
+        await createNotification({
+          userId: userId,
+          type: 'follow',
+          title: 'New Follower',
+          message: `${currentUser.name || currentUser.fullName} started following you`,
+          relatedUserId: currentUserId
+        });
+        
+        console.log('🔗 Notification created successfully');
+      } catch (notificationError) {
+        console.log('⚠️ Notification creation failed:', notificationError.message);
+        // Don't fail the follow operation if notification fails
+      }
       
       res.json({ message: 'Followed successfully', isFollowing: true, currentUserId });
     }
   } catch (error) {
-    console.error('Error following/unfollowing user:', error);
+    console.error('❌ Error following/unfollowing user:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -200,6 +235,8 @@ exports.searchUsers = async (req, res) => {
   try {
     const { q } = req.query;
     const currentUserId = req.user?.id;
+    
+    console.log('🔍 Search users request:', { query: q, currentUserId, user: req.user, userId: req.userId });
 
     if (!q) {
       return res.status(400).json({ error: 'Search query is required' });
@@ -228,13 +265,16 @@ exports.searchUsers = async (req, res) => {
       }
     }
 
+    console.log('🔍 Search query:', query);
+
     const users = await User.find(query)
       .select('name fullName username avatar bio isOnline lastSeen')
       .limit(20);
 
+    console.log('🔍 Found users:', users.length);
     res.json(users);
   } catch (error) {
-    console.error('Error searching users:', error);
+    console.error('❌ Error searching users:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -550,6 +590,8 @@ exports.getMyFollowing = async (req, res) => {
 exports.getSuggestedUsers = async (req, res) => {
   try {
     const currentUserId = req.user?.id;
+    
+    console.log('🔍 Suggested users request:', { currentUserId, user: req.user, userId: req.userId });
 
     if (!currentUserId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -564,6 +606,8 @@ exports.getSuggestedUsers = async (req, res) => {
       ...(currentUser.blockedUsers || [])
     ];
 
+    console.log('🔍 Suggested users query:', { currentUserId, excludedUsers });
+
     const suggestedUsers = await User.find({
       _id: { $nin: excludedUsers },
       isPrivate: false
@@ -571,9 +615,10 @@ exports.getSuggestedUsers = async (req, res) => {
       .select('name fullName username avatar bio isOnline lastSeen')
       .limit(10);
 
+    console.log('🔍 Found suggested users:', suggestedUsers.length);
     res.json(suggestedUsers);
   } catch (error) {
-    console.error('Error getting suggested users:', error);
+    console.error('❌ Error getting suggested users:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }; 

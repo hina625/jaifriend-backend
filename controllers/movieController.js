@@ -272,7 +272,7 @@ exports.addComment = async (req, res) => {
 exports.deleteComment = async (req, res) => {
   try {
     const { movieId, commentId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
 
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
@@ -283,19 +283,20 @@ exports.deleteComment = async (req, res) => {
       return res.status(404).json({ message: 'Movie not found' });
     }
 
-    const commentIndex = movie.comments.findIndex(
-      comment => comment._id.toString() === commentId && 
-      comment.user.userId.toString() === userId
-    );
-
-    if (commentIndex === -1) {
-      return res.status(404).json({ message: 'Comment not found or unauthorized' });
+    const comment = movie.comments.id(commentId);
+    if (!comment) {
+      return res.status(404).json({ message: 'Comment not found' });
     }
 
-    movie.comments.splice(commentIndex, 1);
+    // Check if user is comment owner or movie owner
+    if (String(comment.user.userId) !== String(userId) && String(movie.user.userId) !== String(userId)) {
+      return res.status(403).json({ message: 'Unauthorized to delete this comment' });
+    }
+
+    movie.comments.pull(commentId);
     await movie.save();
 
-    res.json(movie);
+    res.json({ message: 'Comment deleted successfully', movie });
   } catch (error) {
     console.error('Error deleting comment:', error);
     res.status(500).json({ message: 'Error deleting comment', error: error.message });

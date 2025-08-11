@@ -17,6 +17,7 @@ const authMiddleware = (req, res, next) => {
     console.log('🔐 Token decoded successfully:', decoded);
     console.log('🔐 User ID from token:', decoded.userId);
     
+    // Set both for compatibility
     req.user = { id: decoded.userId };
     req.userId = decoded.userId;
     
