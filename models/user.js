@@ -42,7 +42,7 @@ const userSchema = new mongoose.Schema({
 
   }],
   notificationSettings: {
-    someoneLikedMyPosts: { type: Boolean, default: true },
+    someonelikedMyPosts: { type: Boolean, default: true },
     someoneCommentedOnMyPosts: { type: Boolean, default: true },
     someoneSharedOnMyPosts: { type: Boolean, default: true },
     someoneFollowedMe: { type: Boolean, default: true },

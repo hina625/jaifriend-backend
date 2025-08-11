@@ -89,6 +89,8 @@ exports.createPost = async (req, res) => {
 // Get all posts (for dashboard feed)
 exports.getAllPosts = async (req, res) => {
   try {
+    console.log('🔍 getAllPosts called');
+    
     const posts = await Post.find()
       .sort({ createdAt: -1 })
       .populate('user.userId', 'name avatar username')
@@ -98,22 +100,34 @@ exports.getAllPosts = async (req, res) => {
       .populate('views', 'name avatar')
       .limit(50);
     
+    console.log(`🔍 Found ${posts.length} posts`);
+    
     // Ensure all media URLs are full URLs
     const postsWithFullUrls = posts.map(post => {
       const postObj = post.toObject();
+      console.log(`🔍 Processing post ${postObj._id}:`, {
+        hasMedia: !!postObj.media,
+        mediaLength: postObj.media?.length,
+        mediaUrls: postObj.media?.map(m => m.url)
+      });
+      
       if (postObj.media && postObj.media.length > 0) {
         postObj.media = postObj.media.map(media => {
           if (media.url && !media.url.startsWith('http')) {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            media.url = `${baseUrl}${media.url}`;
+            const fullUrl = `${baseUrl}${media.url}`;
+            console.log(`🔗 Converting media URL: ${media.url} -> ${fullUrl}`);
+            media.url = fullUrl;
           }
           if (media.thumbnail && !media.thumbnail.startsWith('http')) {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            media.thumbnail = `${baseUrl}${media.thumbnail}`;
+            const fullUrl = `${baseUrl}${media.thumbnail}`;
+            console.log(`🔗 Converting thumbnail URL: ${media.thumbnail} -> ${fullUrl}`);
+            media.thumbnail = fullUrl;
           }
           return media;
         });
@@ -121,8 +135,10 @@ exports.getAllPosts = async (req, res) => {
       return postObj;
     });
     
+    console.log(`✅ Returning ${postsWithFullUrls.length} posts with full URLs`);
     res.json(postsWithFullUrls);
   } catch (error) {
+    console.error('❌ Error in getAllPosts:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -131,6 +147,8 @@ exports.getAllPosts = async (req, res) => {
 exports.getUserPosts = async (req, res) => {
   try {
     const userId = req.userId;
+    console.log('🔍 getUserPosts called for userId:', userId);
+    
     const posts = await Post.find({ 
       $or: [
         { userId: userId },
@@ -144,6 +162,8 @@ exports.getUserPosts = async (req, res) => {
       .populate('savedBy', 'name avatar')
       .populate('views', 'name avatar');
     
+    console.log(`🔍 Found ${posts.length} posts for user`);
+    
     // Ensure all media URLs are full URLs
     const postsWithFullUrls = posts.map(post => {
       const postObj = post.toObject();
@@ -153,13 +173,17 @@ exports.getUserPosts = async (req, res) => {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            media.url = `${baseUrl}${media.url}`;
+            const fullUrl = `${baseUrl}${media.url}`;
+            console.log(`🔗 Converting media URL: ${media.url} -> ${fullUrl}`);
+            media.url = fullUrl;
           }
           if (media.thumbnail && !media.thumbnail.startsWith('http')) {
             const baseUrl = process.env.NODE_ENV === 'production' 
               ? 'https://jaifriend-backend-production.up.railway.app'
               : 'http://localhost:5000';
-            media.thumbnail = `${baseUrl}${media.thumbnail}`;
+            const fullUrl = `${baseUrl}${media.thumbnail}`;
+            console.log(`🔗 Converting thumbnail URL: ${media.thumbnail} -> ${fullUrl}`);
+            media.thumbnail = fullUrl;
           }
           return media;
         });
@@ -167,8 +191,10 @@ exports.getUserPosts = async (req, res) => {
       return postObj;
     });
     
+    console.log(`✅ Returning ${postsWithFullUrls.length} posts with full URLs`);
     res.json(postsWithFullUrls);
   } catch (err) {
+    console.error('❌ Error in getUserPosts:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -340,37 +366,66 @@ exports.deletePost = async (req, res) => {
 // Toggle like on a post
 exports.toggleLike = async (req, res) => {
   try {
+    console.log('🔍 toggleLike called with params:', req.params);
+    console.log('🔍 req.userId:', req.userId);
+    console.log('🔍 req.user:', req.user);
+    
     const { id } = req.params;
     const userId = req.userId;
 
+    if (!userId) {
+      console.log('❌ No userId found in request');
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    console.log('🔍 Looking for post with ID:', id);
     const post = await Post.findById(id);
+    
     if (!post) {
+      console.log('❌ Post not found with ID:', id);
       return res.status(404).json({ message: 'Post not found' });
     }
 
+    console.log('✅ Post found:', post._id);
+    console.log('🔍 Current likes:', post.likes);
+    console.log('🔍 User ID to toggle:', userId);
+
     const likeIndex = post.likes.indexOf(userId);
+    console.log('🔍 Like index:', likeIndex);
+    
     if (likeIndex > -1) {
       post.likes.splice(likeIndex, 1);
+      console.log('❌ Removed like, new likes:', post.likes);
     } else {
       post.likes.push(userId);
+      console.log('✅ Added like, new likes:', post.likes);
       
       // Create notification for post owner when someone likes their post
       if (post.user?.userId?.toString() !== userId.toString()) {
+        console.log('🔔 Creating notification for post owner');
         const { createNotification } = require('./notificationController');
         const currentUser = await User.findById(userId);
         
-        await createNotification({
-          userId: post.user?.userId,
-          type: 'like',
-          title: 'New Like',
-          message: `${currentUser.name} liked your post`,
-          relatedUserId: userId,
-          relatedPostId: post._id
-        });
+        if (currentUser) {
+          await createNotification({
+            userId: post.user?.userId,
+            type: 'post_like',
+            title: 'New Like',
+            message: `${currentUser.name} liked your post`,
+            relatedUserId: userId,
+            relatedPostId: post._id
+          });
+          console.log('🔔 Notification created successfully');
+        } else {
+          console.log('❌ Current user not found for notification');
+        }
+      } else {
+        console.log('🔍 Post owner liking their own post, no notification needed');
       }
     }
 
     await post.save();
+    console.log('💾 Post saved successfully');
     
     // Populate user info for response
     await post.populate('user.userId', 'name avatar username');
@@ -379,13 +434,17 @@ exports.toggleLike = async (req, res) => {
     await post.populate('savedBy', 'name avatar');
     await post.populate('views', 'name avatar');
     
-    res.json({ 
+    const response = { 
       message: likeIndex > -1 ? 'Post unliked' : 'Post liked',
       post: post,
       likes: post.likes.length,
       isLiked: likeIndex === -1
-    });
+    };
+    
+    console.log('✅ Sending response:', response);
+    res.json(response);
   } catch (err) {
+    console.error('❌ Error in toggleLike:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -469,14 +528,14 @@ exports.addComment = async (req, res) => {
     if (post.user?.userId?.toString() !== userId.toString()) {
       const { createNotification } = require('./notificationController');
       
-      await createNotification({
-        userId: post.user?.userId,
-        type: 'comment',
-        title: 'New Comment',
-        message: `${user.name} commented on your post`,
-        relatedUserId: userId,
-        relatedPostId: post._id
-      });
+              await createNotification({
+          userId: post.user?.userId,
+          type: 'post_comment',
+          title: 'New Comment',
+          message: `${user.name} commented on your post`,
+          relatedUserId: userId,
+          relatedPostId: post._id
+        });
     }
 
     // Populate user info for response

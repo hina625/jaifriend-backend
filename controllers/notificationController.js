@@ -337,8 +337,11 @@ const getNotificationStats = async (req, res) => {
 // Create notification (utility function for other controllers)
 const createNotification = async (data) => {
   try {
+    console.log('🔔 Creating notification:', data);
+    
     // Check if user has notification settings enabled for this type
     const shouldCreateNotification = await checkNotificationSettings(data.userId, data.type);
+    console.log(`🔔 Should create notification for user ${data.userId}, type ${data.type}:`, shouldCreateNotification);
     
     if (!shouldCreateNotification) {
       console.log(`Notification skipped for user ${data.userId}, type ${data.type} - settings disabled`);
@@ -357,6 +360,7 @@ const createNotification = async (data) => {
     });
 
     await notification.save();
+    console.log('🔔 Notification created successfully:', notification._id);
     return notification;
   } catch (error) {
     console.error('Error creating notification:', error);
@@ -367,37 +371,50 @@ const createNotification = async (data) => {
 // Check if user has notification settings enabled for specific type
 const checkNotificationSettings = async (userId, notificationType) => {
   try {
+    console.log(`🔔 Checking notification settings for user ${userId}, type ${notificationType}`);
+    
     const user = await User.findById(userId).select('notificationSettings');
+    console.log('🔔 User found:', user ? 'Yes' : 'No');
     
     if (!user || !user.notificationSettings) {
       // If no settings found, default to true (allow notifications)
+      console.log('🔔 No settings found, defaulting to true');
       return true;
     }
 
     const settings = user.notificationSettings;
+    console.log('🔔 User notification settings:', settings);
     
     // Map notification types to settings
     const typeToSettingMap = {
-      'like': 'someonelikedMyPosts',
-      'comment': 'someoneCommentedOnMyPosts',
-      'share': 'someoneSharedOnMyPosts',
+      'post_like': 'someonelikedMyPosts',
+      'post_comment': 'someoneCommentedOnMyPosts',
+      'post_share': 'someoneSharedOnMyPosts',
       'follow': 'someoneFollowedMe',
       'page_like': 'someoneLikedMyPages',
       'profile_visit': 'someoneVisitedMyProfile',
       'mention': 'someoneMentionedMe',
       'group_join': 'someoneJoinedMyGroups',
-      'friend_request': 'someoneAcceptedMyFriendRequest',
+      'friend_request_accepted': 'someoneAcceptedMyFriendRequest',
       'timeline_post': 'someonePostedOnMyTimeline'
     };
 
     const settingKey = typeToSettingMap[notificationType];
+    console.log(`🔔 Mapped setting key for type ${notificationType}:`, settingKey);
     
     if (!settingKey) {
       // If type not mapped, default to true
+      console.log('🔔 Type not mapped, defaulting to true');
       return true;
     }
 
-    return settings[settingKey] !== false; // Return true if setting is not explicitly false
+    const settingValue = settings[settingKey];
+    console.log(`🔔 Setting value for ${settingKey}:`, settingValue);
+    
+    const result = settingValue !== false; // Return true if setting is not explicitly false
+    console.log(`🔔 Final result:`, result);
+    
+    return result;
   } catch (error) {
     console.error('Error checking notification settings:', error);
     // Default to true if there's an error
