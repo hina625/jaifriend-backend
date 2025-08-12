@@ -1,5 +1,8 @@
-const express = require('express');
 const dotenv = require('dotenv');
+// Load environment variables first
+dotenv.config();
+
+const express = require('express');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const postRoutes = require('./routes/postRoutes');
@@ -31,8 +34,6 @@ const path = require('path');
 const passport = require('passport');
  require('./config/passport'); // Passport strategies config (to be created)
 
-dotenv.config();
-
 // Set fallback JWT_SECRET if not provided
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = 'fallback-secret-key-for-development';
@@ -61,16 +62,16 @@ const postMediaDir = path.join(uploadsDir, 'post-media');
 
 const app = express();
 
-// Force HTTPS in production - Commented out for Railway deployment
-// Railway handles HTTPS automatically, so we don't need this redirect
-// if (process.env.NODE_ENV === 'production') {
-//   app.use((req, res, next) => {
-//     if (req.headers['x-forwarded-proto'] !== 'https') {
-//       return res.redirect(`https://${req.headers.host}${req.url}`);
-//       next();
-//     }
-//   });
-// }
+//Force HTTPS in production - Commented out for Railway deployment
+//Railway handles HTTPS automatically, so we don't need this redirect
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect(`https://${req.headers.host}${req.url}`);
+      next();
+    }
+  });
+}
 
 // CORS configuration - must come before other middleware
 const cors = require('cors');

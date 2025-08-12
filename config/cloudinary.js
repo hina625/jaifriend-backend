@@ -5,10 +5,7 @@ const multer = require('multer');
 // Check if Cloudinary credentials are properly configured
 const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
                               process.env.CLOUDINARY_API_KEY && 
-                              process.env.CLOUDINARY_API_SECRET &&
-                              process.env.CLOUDINARY_CLOUD_NAME !== 'dqkleyh2z' &&
-                              process.env.CLOUDINARY_API_KEY !== '889535112914175' &&
-                              process.env.CLOUDINARY_API_SECRET !== 'RuzBYlHCZ64uWyLwsAjyW4zB8XI';
+                              process.env.CLOUDINARY_API_SECRET;
 
 console.log('☁️ Cloudinary configuration check:');
 console.log('  - Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME ? 'Set' : 'Missing');

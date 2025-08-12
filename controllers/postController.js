@@ -29,13 +29,27 @@ exports.createPost = async (req, res) => {
 
     // Handle media files
     let media = [];
+    console.log('📁 File upload debugging:');
+    console.log('  - req.files:', req.files);
+    console.log('  - req.files length:', req.files?.length);
+    console.log('  - req.body:', req.body);
+    
     if (req.files && req.files.length > 0) {
-      media = req.files.map(file => {
+      console.log('📁 Processing files:', req.files.length);
+      media = req.files.map((file, index) => {
+        console.log(`📁 File ${index + 1}:`, {
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: file.path,
+          filename: file.filename
+        });
+        
         const isVideo = file.mimetype.startsWith('video/');
         const isAudio = file.mimetype.startsWith('audio/');
         
         // Cloudinary provides secure URLs directly
-        return {
+        const mediaItem = {
           url: file.path, // Cloudinary secure URL
           publicId: file.filename, // Cloudinary public ID for deletion
           type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
@@ -45,8 +59,15 @@ exports.createPost = async (req, res) => {
           mimetype: file.mimetype,
           uploadedAt: new Date()
         };
+        
+        console.log(`📁 Created media item ${index + 1}:`, mediaItem);
+        return mediaItem;
       });
+    } else {
+      console.log('📁 No files uploaded');
     }
+    
+    console.log('📁 Final media array:', media);
 
     // Parse hashtags if provided as string
     let parsedHashtags = [];
@@ -81,7 +102,20 @@ exports.createPost = async (req, res) => {
       userId
     });
 
+    console.log('📝 Post object before saving:', {
+      content: post.content,
+      media: post.media,
+      mediaLength: post.media?.length,
+      userId: post.userId
+    });
+
     await post.save();
+    
+    console.log('📝 Post saved successfully:', {
+      id: post._id,
+      media: post.media,
+      mediaLength: post.media?.length
+    });
 
     // Populate user info
     await post.populate('user.userId', 'name avatar username');
@@ -115,7 +149,11 @@ exports.getAllPosts = async (req, res) => {
       console.log(`🔍 Processing post ${postObj._id}:`, {
         hasMedia: !!postObj.media,
         mediaLength: postObj.media?.length,
-        mediaUrls: postObj.media?.map(m => m.url)
+        mediaUrls: postObj.media?.map(m => m.url),
+        mediaType: typeof postObj.media,
+        isArray: Array.isArray(postObj.media),
+        mediaKeys: postObj.media ? Object.keys(postObj.media) : null,
+        rawMedia: postObj.media
       });
       
       if (postObj.media && postObj.media.length > 0) {
