@@ -2,33 +2,7 @@ const express = require('express');
 const router = express.Router();
 const videoController = require('../controllers/videoController');
 const auth = require('../middlewares/authMiddleware');
-const multer = require('multer');
-const path = require('path');
-
-// Set up multer for video uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '..', 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  fileFilter: (req, file, cb) => {
-    // Accept video files only
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only video files are allowed'), false);
-    }
-  },
-  limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB limit
-  }
-});
+const { upload } = require('../config/cloudinary');
 
 // Get all videos (for watch page)
 router.get('/', videoController.getVideos);

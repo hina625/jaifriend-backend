@@ -2,19 +2,7 @@ const express = require('express');
 const router = express.Router();
 const albumController = require('../controllers/albumController');
 const auth = require('../middlewares/authMiddleware');
-const multer = require('multer');
-const path = require('path');
-
-// Set up multer for album photo uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '..', 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage: storage });
+const { upload } = require('../config/cloudinary');
 
 // Create album (multiple photos or photo URLs)
 router.post('/', auth, upload.array('photos', 20), albumController.createAlbum);

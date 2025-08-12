@@ -1,57 +1,4 @@
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    let uploadPath = 'uploads/';
-    
-    // Create different folders for different types of uploads
-    if (file.fieldname === 'profilePhoto') {
-      uploadPath += 'profile-photos/';
-    } else if (file.fieldname === 'coverPhoto') {
-      uploadPath += 'cover-photos/';
-    } else if (file.fieldname === 'postMedia') {
-      uploadPath += 'post-media/';
-    } else {
-      uploadPath += 'general/';
-    }
-    
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename with timestamp
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// File filter to accept only images and videos
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif|webp|mp4|avi|mov|wmv|flv|webm/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
-
-  if (mimetype && extname) {
-    return cb(null, true);
-  } else {
-    cb(new Error('Only image and video files are allowed!'));
-  }
-};
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
-  },
-  fileFilter: fileFilter
-});
+const { upload } = require('../config/cloudinary');
 
 // Upload profile photo
 exports.uploadProfilePhoto = async (req, res) => {
@@ -80,16 +27,20 @@ exports.uploadProfilePhoto = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
       
-      // Delete old profile photo if it exists and is not default
+      // Delete old profile photo from Cloudinary if it exists and is not default
       if (user.avatar && !user.avatar.includes('avatars/') && user.avatar !== '/avatars/1.png.png') {
-        const oldPhotoPath = path.join(__dirname, '..', user.avatar);
-        if (fs.existsSync(oldPhotoPath)) {
-          fs.unlinkSync(oldPhotoPath);
+        try {
+          const { deleteFromCloudinary } = require('../config/cloudinary');
+          // Extract public ID from Cloudinary URL
+          const publicId = user.avatar.split('/').pop().split('.')[0];
+          await deleteFromCloudinary(publicId);
+        } catch (error) {
+          console.log('Could not delete old profile photo:', error.message);
         }
       }
       
-      // Update user's avatar with new photo path
-      const photoUrl = '/' + req.file.path.replace(/\\/g, '/');
+      // Update user's avatar with Cloudinary URL
+      const photoUrl = req.file.path; // Cloudinary provides secure URL directly
       user.avatar = photoUrl;
       await user.save();
 
@@ -132,16 +83,20 @@ exports.uploadCoverPhoto = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
       
-      // Delete old cover photo if it exists
+      // Delete old cover photo from Cloudinary if it exists
       if (user.coverPhoto && user.coverPhoto !== '/covers/default-cover.jpg') {
-        const oldCoverPath = path.join(__dirname, '..', user.coverPhoto);
-        if (fs.existsSync(oldCoverPath)) {
-          fs.unlinkSync(oldCoverPath);
+        try {
+          const { deleteFromCloudinary } = require('../config/cloudinary');
+          // Extract public ID from Cloudinary URL
+          const publicId = user.coverPhoto.split('/').pop().split('.')[0];
+          await deleteFromCloudinary(publicId);
+        } catch (error) {
+          console.log('Could not delete old cover photo:', error.message);
         }
       }
       
-      // Update user's cover photo with new photo path
-      const coverUrl = '/' + req.file.path.replace(/\\/g, '/');
+      // Update user's cover photo with Cloudinary URL
+      const coverUrl = req.file.path; // Cloudinary provides secure URL directly
       user.coverPhoto = coverUrl;
       await user.save();
 
@@ -174,7 +129,7 @@ exports.uploadPostMedia = async (req, res) => {
       const uploadedFiles = req.files.map(file => ({
       filename: file.filename,
         originalname: file.originalname,
-        path: '/' + file.path.replace(/\\/g, '/'),
+        path: file.path, // Cloudinary provides secure URL directly
         size: file.size,
       mimetype: file.mimetype,
       type: file.mimetype.startsWith('image/') ? 'image' : 'video'
@@ -205,13 +160,24 @@ exports.deleteFile = async (req, res) => {
       return res.status(400).json({ error: 'File path is required' });
     }
     
-    const fullPath = path.join(__dirname, '..', filePath);
-    
-    if (fs.existsSync(fullPath)) {
-      fs.unlinkSync(fullPath);
-      res.json({ message: 'File deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'File not found' });
+    // Try to delete from Cloudinary first
+    try {
+      const { deleteFromCloudinary } = require('../config/cloudinary');
+      // Extract public ID from Cloudinary URL
+      const publicId = filePath.split('/').pop().split('.')[0];
+      await deleteFromCloudinary(publicId);
+      res.json({ message: 'File deleted from Cloudinary successfully' });
+    } catch (cloudinaryError) {
+      console.log('Could not delete from Cloudinary, trying local file:', cloudinaryError.message);
+      
+      // Fallback to local file deletion
+      const fullPath = path.join(__dirname, '..', filePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+        res.json({ message: 'Local file deleted successfully' });
+      } else {
+        res.status(404).json({ error: 'File not found' });
+      }
     }
   } catch (error) {
     console.error('Error deleting file:', error);
