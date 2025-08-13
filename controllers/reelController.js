@@ -23,7 +23,7 @@ exports.getReels = async (req, res) => {
     
     res.json({
       reels,
-      totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit),
       currentPage: page,
       total
     });
@@ -95,7 +95,7 @@ exports.getUserReels = async (req, res) => {
     
     res.json({
       reels,
-      totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit),
       currentPage: page,
       total
     });
@@ -135,11 +135,11 @@ exports.createReel = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const {
-      title,
-      description,
+    const { 
+      title, 
+      description, 
       hashtags = [],
-      duration,
+      duration, 
       aspectRatio = '9:16',
       music,
       effects = [],
@@ -167,10 +167,10 @@ exports.createReel = async (req, res) => {
       hashtags: Array.isArray(hashtags) ? hashtags : hashtags.split(',').map(tag => tag.trim()),
       videoUrl,
       duration: parseFloat(duration) || 0,
-      aspectRatio,
-      music,
-      effects,
-      privacy,
+      aspectRatio, 
+      music, 
+      effects, 
+      privacy, 
       category,
       likes: [],
       views: [],
@@ -190,7 +190,7 @@ exports.createReel = async (req, res) => {
       message: 'Reel created successfully',
       reel 
     });
-  } catch (error) {
+        } catch (error) {
     console.error('Error creating reel:', error);
     res.status(500).json({ error: 'Failed to create reel' });
   }
@@ -290,25 +290,39 @@ exports.toggleLike = async (req, res) => {
 // Share reel
 exports.shareReel = async (req, res) => {
   try {
+    console.log('🔄 Share reel request received:', req.params);
+    console.log('👤 User ID:', req.user.id);
+    
     const { id } = req.params;
     const userId = req.user.id;
     
     const reel = await Reel.findById(id);
     if (!reel) {
+      console.log('❌ Reel not found:', id);
       return res.status(404).json({ error: 'Reel not found' });
     }
+    
+    console.log('📹 Reel found:', reel._id);
+    console.log('📊 Current shares:', reel.shares);
     
     if (!reel.shares.includes(userId)) {
       reel.shares.push(userId);
       await reel.save();
+      console.log('✅ User added to shares');
+    } else {
+      console.log('ℹ️ User already in shares');
     }
     
-    res.json({ 
+    const response = { 
       message: 'Reel shared successfully',
-      sharesCount: reel.shares.length
-    });
+      shares: reel.shares,
+      trendingScore: reel.trendingScore || 0
+    };
+    
+    console.log('📤 Sending response:', response);
+    res.json(response);
   } catch (error) {
-    console.error('Error sharing reel:', error);
+    console.error('❌ Error sharing reel:', error);
     res.status(500).json({ error: 'Failed to share reel' });
   }
 };

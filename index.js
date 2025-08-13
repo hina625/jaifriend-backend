@@ -131,7 +131,15 @@ app.use('/api/userimages', userImageRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/videos', videoRoutes);
-app.use('/api/reels', reelRoutes);
+try {
+  app.use('/api/reels', (req, res, next) => {
+    console.log(`🎬 Reels route accessed: ${req.method} ${req.originalUrl}`);
+    next();
+  }, reelRoutes);
+  console.log('✅ Reels routes loaded successfully');
+} catch (error) {
+  console.error('❌ Error loading reels routes:', error);
+}
 app.use('/api/events', eventRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/orders', orderRoutes);
