@@ -7,6 +7,7 @@ const postSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
   },
   content: { type: String, required: true, maxlength: 5000 },
+  title: { type: String, maxlength: 100 },
   media: [
     {
       url: { type: String, required: true },

@@ -5,6 +5,10 @@ const auth = require('../middlewares/authMiddleware');
 const { upload } = require('../config/cloudinary');
 
 // Public routes (no authentication required)
+router.get('/health', (req, res) => {
+  console.log('🏥 Reels health check called');
+  res.json({ status: 'OK', message: 'Reels API is working', timestamp: new Date().toISOString() });
+});
 router.get('/', reelController.getReels);
 router.get('/trending', reelController.getTrendingReels);
 router.get('/hashtag/:hashtag', reelController.getReelsByHashtag);

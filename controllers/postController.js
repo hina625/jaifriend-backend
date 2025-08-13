@@ -13,7 +13,7 @@ const constructFullUrl = (baseUrl, path) => {
 // Create a new post
 exports.createPost = async (req, res) => {
   try {
-    const { content, privacy = 'public', location, hashtags } = req.body;
+    const { content, title, privacy = 'public', location, hashtags } = req.body;
     const userId = req.userId;
 
     // Get user details from database
@@ -93,6 +93,7 @@ exports.createPost = async (req, res) => {
 
     const post = new Post({
       content,
+      title,
       media,
       privacy,
       location,
@@ -605,7 +606,7 @@ exports.addComment = async (req, res) => {
 exports.editPost = async (req, res) => {
   try {
     const { id } = req.params;
-    const { content, privacy, location, hashtags } = req.body;
+    const { content, title, privacy, location, hashtags } = req.body;
     const userId = req.userId;
 
     const post = await Post.findById(id);
@@ -649,6 +650,7 @@ exports.editPost = async (req, res) => {
 
     // Update post
     post.content = content || post.content;
+    post.title = title || post.title; // Add this line to update the title
     post.privacy = privacy || post.privacy;
     post.location = location || post.location;
     post.hashtags = parsedHashtags.length > 0 ? parsedHashtags : post.hashtags;

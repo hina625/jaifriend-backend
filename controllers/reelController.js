@@ -4,13 +4,41 @@ const User = require('../models/user');
 // Get all reels with pagination and filtering
 exports.getReels = async (req, res) => {
   try {
+    console.log('🎬 getReels called with query:', req.query);
+    console.log('🔐 Auth headers:', req.headers.authorization ? 'Present' : 'Missing');
+    
     const { page = 1, limit = 10, category, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     
     const query = {};
     if (category) query.category = category;
     
+    console.log('🔍 Database query:', query);
+    
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    console.log('📊 Sort options:', sortOptions);
+    
+    // Check total count first
+    const total = await Reel.countDocuments(query);
+    console.log('📈 Total reels in database:', total);
+    
+    // If no reels, return empty response with proper structure
+    if (total === 0) {
+      console.log('📭 No reels found, returning empty response');
+      const response = {
+        reels: [],
+        pagination: {
+          totalPages: 0,
+          currentPage: parseInt(page),
+          total: 0,
+          hasNextPage: false,
+          hasPrevPage: false
+        }
+      };
+      console.log('📤 Sending empty response:', response);
+      return res.json(response);
+    }
     
     const reels = await Reel.find(query)
       .populate('user', 'name username avatar verified isPro')
@@ -19,16 +47,24 @@ exports.getReels = async (req, res) => {
       .skip((page - 1) * limit)
       .exec();
     
-    const total = await Reel.countDocuments(query);
+    console.log('📋 Found reels:', reels.length);
+    console.log('📄 Page info:', { page, limit, totalPages: Math.ceil(total / limit) });
     
-    res.json({
+    const response = {
       reels,
+      pagination: {
         totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total
-    });
+        currentPage: parseInt(page),
+        total,
+        hasNextPage: parseInt(page) < Math.ceil(total / limit),
+        hasPrevPage: parseInt(page) > 1
+      }
+    };
+    
+    console.log('📤 Sending response:', response);
+    res.json(response);
   } catch (error) {
-    console.error('Error getting reels:', error);
+    console.error('❌ Error getting reels:', error);
     res.status(500).json({ error: 'Failed to get reels' });
   }
 };
@@ -128,12 +164,20 @@ exports.getReelById = async (req, res) => {
 // Create a new reel
 exports.createReel = async (req, res) => {
   try {
+    console.log('🎬 Create reel request received');
+    console.log('👤 User ID:', req.user.id);
+    console.log('📁 File:', req.file);
+    console.log('📋 Body:', req.body);
+    
     const userId = req.user.id;
     const user = await User.findById(userId);
     
     if (!user) {
+      console.log('❌ User not found:', userId);
       return res.status(404).json({ error: 'User not found' });
     }
+    
+    console.log('✅ User found:', user.username);
     
     const { 
       title, 
@@ -151,6 +195,9 @@ exports.createReel = async (req, res) => {
     let videoUrl = '';
     if (req.file) {
       videoUrl = req.file.path || req.file.secure_url;
+      console.log('📹 Video file uploaded:', videoUrl);
+    } else {
+      console.log('❌ No video file received');
     }
     
     const reelData = {
@@ -183,15 +230,19 @@ exports.createReel = async (req, res) => {
       isSponsored: false
     };
     
+    console.log('📊 Reel data prepared:', reelData);
+    
     const reel = new Reel(reelData);
     await reel.save();
+    
+    console.log('✅ Reel saved successfully:', reel._id);
     
     res.status(201).json({ 
       message: 'Reel created successfully',
       reel 
     });
-        } catch (error) {
-    console.error('Error creating reel:', error);
+  } catch (error) {
+    console.error('❌ Error creating reel:', error);
     res.status(500).json({ error: 'Failed to create reel' });
   }
 };
