@@ -8,6 +8,7 @@ const authRoutes = require('./routes/authRoutes');
 const postRoutes = require('./routes/postRoutes');
 const albumRoutes = require('./routes/albumRoutes');
 const videoRoutes = require('./routes/videoRoutes');
+const reelRoutes = require('./routes/reelRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 const orderRoutes = require('./routes/orderRoutes');
@@ -19,6 +20,7 @@ const userImageRoutes = require('./routes/userImageRoutes');
 const upgradeRoutes = require('./routes/upgradeRoutes');
 const fileMonitorRoutes = require('./routes/fileMonitorRoutes');
 const movieRoutes = require('./routes/movieRoutes');
+const storyRoutes = require('./routes/storyRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const privacyRoutes = require('./routes/privacyRoutes');
 const passwordRoutes = require('./routes/passwordRoutes');
@@ -129,6 +131,7 @@ app.use('/api/userimages', userImageRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/api/reels', reelRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/orders', orderRoutes);
@@ -142,6 +145,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/upgrade', upgradeRoutes);
 app.use('/api/filemonitor', fileMonitorRoutes);
 app.use('/api/movies', movieRoutes);
+app.use('/api/stories', storyRoutes);
 app.use('/api/social-links', socialLinksRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/admin', adminRoutes);
@@ -181,7 +185,10 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
  
   const fileMonitor = require('./utils/fileMonitor');
+  const storyCleanup = require('./utils/storyCleanup');
+  
   setTimeout(() => {
     fileMonitor.startWatching();
+    storyCleanup.startCleanupScheduler();
   }, 2000); // Start after 2 seconds to ensure everything is loaded
 });

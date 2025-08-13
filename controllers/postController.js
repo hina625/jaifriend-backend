@@ -670,6 +670,69 @@ exports.editPost = async (req, res) => {
   }
 };
 
+// Edit a comment on a post
+exports.editComment = async (req, res) => {
+  try {
+    const { id: postId, commentId } = req.params;
+    const { text } = req.body;
+    const userId = req.userId;
+
+    console.log('✏️ Editing comment:', { postId, commentId, userId, text });
+
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ message: 'Comment text cannot be empty' });
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      console.log('❌ Post not found:', postId);
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const comment = post.comments.id(commentId);
+    if (!comment) {
+      console.log('❌ Comment not found:', commentId);
+      return res.status(404).json({ message: 'Comment not found' });
+    }
+
+    console.log('🔍 Comment user ID:', comment.user.userId.toString());
+    console.log('🔍 Current user ID:', userId);
+
+    // Only comment author can edit comment
+    if (comment.user.userId.toString() !== userId) {
+      console.log('❌ Unauthorized to edit comment');
+      return res.status(403).json({ message: 'Not authorized to edit this comment' });
+    }
+
+    // Update comment text
+    comment.text = text.trim();
+    comment.edited = true;
+    comment.editedAt = new Date();
+    
+    await post.save();
+
+    console.log('✅ Comment updated, saving post...');
+
+    // Populate the post with user info before sending response
+    await post.populate('user.userId', 'name avatar username');
+    await post.populate('comments.user.userId', 'name avatar');
+    await post.populate('likes', 'name avatar');
+    await post.populate('savedBy', 'name avatar');
+    await post.populate('views', 'name avatar');
+
+    console.log('✅ Post populated, sending response');
+
+    res.json({ 
+      message: 'Comment updated successfully',
+      comment: comment,
+      post: post
+    });
+  } catch (err) {
+    console.error('❌ Error editing comment:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // Delete a comment from a post
 exports.deleteComment = async (req, res) => {
   try {
@@ -1085,5 +1148,265 @@ exports.getTrendingHashtags = async (req, res) => {
     res.json(trending);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Add review to a post
+exports.addReview = async (req, res) => {
+  try {
+    const { rating, text } = req.body;
+    const { id: postId } = req.params;
+    const userId = req.userId;
+
+    // Validate rating
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    }
+
+    // Find the post
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Check if user has already reviewed this post
+    const existingReviewIndex = post.reviews.findIndex(review => 
+      review.user.toString() === userId
+    );
+
+    if (existingReviewIndex !== -1) {
+      // Update existing review
+      post.reviews[existingReviewIndex].rating = rating;
+      post.reviews[existingReviewIndex].text = text || '';
+      post.reviews[existingReviewIndex].updatedAt = new Date();
+    } else {
+      // Add new review
+      post.reviews.push({
+        user: userId,
+        rating,
+        text: text || '',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    // Calculate average rating and review count
+    const totalRating = post.reviews.reduce((sum, review) => sum + review.rating, 0);
+    post.averageRating = totalRating / post.reviews.length;
+    post.reviewCount = post.reviews.length;
+
+    await post.save();
+
+    // Populate user info for response
+    await post.populate('reviews.user', 'name avatar username');
+
+    res.json({
+      message: 'Review added successfully',
+      post: {
+        _id: post._id,
+        reviews: post.reviews,
+        averageRating: post.averageRating,
+        reviewCount: post.reviewCount
+      }
+    });
+  } catch (error) {
+    console.error('Error adding review:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Save a post
+exports.savePost = async (req, res) => {
+  try {
+    const { id: postId } = req.params;
+    const userId = req.userId;
+
+    // Find the post
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Check if post is already saved by user
+    const isAlreadySaved = post.savedBy.includes(userId);
+
+    if (isAlreadySaved) {
+      // Remove from saved
+      post.savedBy = post.savedBy.filter(id => id.toString() !== userId);
+      await post.save();
+      
+      res.json({
+        message: 'Post removed from saved',
+        saved: false,
+        savedCount: post.savedBy.length
+      });
+    } else {
+      // Add to saved
+      post.savedBy.push(userId);
+      await post.save();
+      
+      res.json({
+        message: 'Post saved successfully',
+        saved: true,
+        savedCount: post.savedBy.length
+      });
+    }
+  } catch (error) {
+    console.error('Error saving/unsaving post:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get saved posts for a user
+exports.getSavedPosts = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Find posts saved by the user
+    const savedPosts = await Post.find({
+      savedBy: userId,
+      privacy: { $ne: 'private' } // Don't show private posts
+    })
+    .populate('user.userId', 'name avatar username')
+    .populate('comments.user.userId', 'name avatar username')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+    // Get total count for pagination
+    const totalSavedPosts = await Post.countDocuments({
+      savedBy: userId,
+      privacy: { $ne: 'private' }
+    });
+
+    res.json({
+      savedPosts,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalSavedPosts / limit),
+        totalPosts: totalSavedPosts,
+        hasNextPage: page * limit < totalSavedPosts,
+        hasPrevPage: page > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching saved posts:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Check if a post is saved by current user
+exports.checkPostSaved = async (req, res) => {
+  try {
+    const { id: postId } = req.params;
+    const userId = req.userId;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const isSaved = post.savedBy.includes(userId);
+    
+    res.json({
+      isSaved,
+      savedCount: post.savedBy.length
+    });
+  } catch (error) {
+    console.error('Error checking post saved status:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Toggle comments on a post
+exports.toggleComments = async (req, res) => {
+  try {
+    const { id: postId } = req.params;
+    const userId = req.userId;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Check if user owns the post
+    if (post.user.userId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Only post owner can toggle comments' });
+    }
+
+    // Toggle comments enabled
+    post.commentsEnabled = !post.commentsEnabled;
+    await post.save();
+
+    res.json({
+      message: `Comments ${post.commentsEnabled ? 'enabled' : 'disabled'} successfully`,
+      commentsEnabled: post.commentsEnabled
+    });
+  } catch (error) {
+    console.error('Error toggling comments:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Pin/Unpin a post
+exports.pinPost = async (req, res) => {
+  try {
+    const { id: postId } = req.params;
+    const userId = req.userId;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Check if user owns the post
+    if (post.user.userId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Only post owner can pin/unpin post' });
+    }
+
+    // Toggle pin status
+    post.isPinned = !post.isPinned;
+    await post.save();
+
+    res.json({
+      message: `Post ${post.isPinned ? 'pinned' : 'unpinned'} successfully`,
+      isPinned: post.isPinned
+    });
+  } catch (error) {
+    console.error('Error pinning/unpinning post:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Boost/Unboost a post
+exports.boostPost = async (req, res) => {
+  try {
+    const { id: postId } = req.params;
+    const userId = req.userId;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Check if user owns the post
+    if (post.user.userId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Only post owner can boost/unboost post' });
+    }
+
+    // Toggle boost status
+    post.isBoosted = !post.isBoosted;
+    await post.save();
+
+    res.json({
+      message: `Post ${post.isBoosted ? 'boosted' : 'unboosted'} successfully`,
+      isBoosted: post.isBoosted
+    });
+  } catch (error) {
+    console.error('Error boosting/unboosting post:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

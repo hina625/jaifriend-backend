@@ -39,6 +39,15 @@ const postSchema = new mongoose.Schema({
     },
     createdAt: { type: Date, default: Date.now }
   }],
+  reviews: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    text: { type: String, maxlength: 1000 },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+  }],
+  averageRating: { type: Number, default: 0, min: 0, max: 5 },
+  reviewCount: { type: Number, default: 0 },
   comments: [
     {
       user: {

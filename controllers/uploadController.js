@@ -14,7 +14,7 @@ exports.uploadProfilePhoto = async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-      const currentUserId = req.user?.id;
+      const currentUserId = req.userId;
       if (!currentUserId) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
@@ -41,8 +41,17 @@ exports.uploadProfilePhoto = async (req, res) => {
       
       // Update user's avatar with Cloudinary URL
       const photoUrl = req.file.path; // Cloudinary provides secure URL directly
+      console.log('📸 Profile photo upload debug:');
+      console.log('  - Original file path:', req.file.path);
+      console.log('  - File object:', req.file);
+      console.log('  - User ID:', currentUserId);
+      console.log('  - Old avatar:', user.avatar);
+      console.log('  - New avatar URL:', photoUrl);
+      
       user.avatar = photoUrl;
       await user.save();
+      
+      console.log('  - Avatar saved to database:', user.avatar);
 
     res.json({
         message: 'Profile photo uploaded successfully',
@@ -70,7 +79,7 @@ exports.uploadCoverPhoto = async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-      const currentUserId = req.user?.id;
+      const currentUserId = req.userId;
       if (!currentUserId) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
@@ -97,8 +106,17 @@ exports.uploadCoverPhoto = async (req, res) => {
       
       // Update user's cover photo with Cloudinary URL
       const coverUrl = req.file.path; // Cloudinary provides secure URL directly
+      console.log('🖼️ Cover photo upload debug:');
+      console.log('  - Original file path:', req.file.path);
+      console.log('  - File object:', req.file);
+      console.log('  - User ID:', currentUserId);
+      console.log('  - Old cover photo:', user.coverPhoto);
+      console.log('  - New cover photo URL:', coverUrl);
+      
       user.coverPhoto = coverUrl;
       await user.save();
+      
+      console.log('  - Cover photo saved to database:', user.coverPhoto);
 
     res.json({
       message: 'Cover photo uploaded successfully',

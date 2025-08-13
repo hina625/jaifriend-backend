@@ -38,14 +38,20 @@ router.post('/single', auth, upload.single('media'), postController.createPost);
 
 // Comment routes (must come before /:id routes to avoid conflicts)
 router.post('/:id/comment', auth, postController.addComment);
+router.put('/:id/comment/:commentId', auth, postController.editComment);
 router.delete('/:id/comment/:commentId', auth, postController.deleteComment);
 
 // Post action routes
 router.post('/:id/like', auth, postController.toggleLike);
 router.post('/:id/reaction', auth, postController.addReaction);
 router.post('/:id/save', auth, postController.toggleSave);
+router.get('/:id/saved-status', auth, postController.checkPostSaved);
+router.post('/:id/toggle-comments', auth, postController.toggleComments);
+router.post('/:id/pin', auth, postController.pinPost);
+router.post('/:id/boost', auth, postController.boostPost);
 router.post('/:id/share', auth, postController.sharePost);
 router.post('/:id/view', auth, postController.addView);
+router.post('/:id/review', auth, postController.addReview);
 
 // Post CRUD routes
 router.delete('/:id', auth, postController.deletePost);
