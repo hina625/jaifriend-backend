@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const storyController = require('../controllers/storyController');
-const auth = require('../middleware/auth');
-const upload = require('../middleware/upload');
+const auth = require('../middlewares/authMiddleware');
+const { upload } = require('../config/cloudinary');
 
 // Create a new story (with media upload)
 router.post('/', auth, upload.single('media'), storyController.createStory);
