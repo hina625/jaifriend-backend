@@ -8,23 +8,111 @@ const postSchema = new mongoose.Schema({
   },
   content: { type: String, required: true, maxlength: 5000 },
   title: { type: String, maxlength: 100 },
+  
+  // Post type and category
+  postType: { 
+    type: String, 
+    enum: ['text', 'image', 'video', 'audio', 'file', 'gif', 'voice', 'feeling', 'sell', 'poll', 'location', 'mixed'],
+    default: 'text'
+  },
+  
+  // Media files (images, videos, audio, files)
   media: [
     {
       url: { type: String, required: true },
-      type: { type: String, enum: ['image', 'video', 'audio'], default: 'image' },
+      type: { type: String, enum: ['image', 'video', 'audio', 'file', 'gif'], default: 'image' },
       thumbnail: { type: String },
       duration: { type: Number }, // for videos/audio
       size: { type: Number }, // file size in bytes
+      originalName: { type: String },
+      mimetype: { type: String },
+      extension: { type: String },
       uploadedAt: { type: Date, default: Date.now }
     }
   ],
+  
+  // Audio specific fields
+  audio: {
+    url: { type: String },
+    duration: { type: Number }, // in seconds
+    title: { type: String, maxlength: 200 },
+    artist: { type: String, maxlength: 200 },
+    album: { type: String, maxlength: 200 },
+    waveform: [{ type: Number }] // for audio visualization
+  },
+  
+  // Voice recording specific fields
+  voice: {
+    url: { type: String },
+    duration: { type: Number }, // in seconds
+    transcription: { type: String }, // AI transcription if available
+    isPublic: { type: Boolean, default: true }
+  },
+  
+  // GIF specific fields
+  gif: {
+    url: { type: String },
+    source: { type: String }, // e.g., 'giphy', 'tenor', 'custom'
+    tags: [{ type: String }],
+    width: { type: Number },
+    height: { type: Number }
+  },
+  
+  // Feeling/Emotion specific fields
+  feeling: {
+    type: { type: String },
+    intensity: { type: Number, min: 1, max: 10 },
+    emoji: { type: String },
+    description: { type: String, maxlength: 200 }
+  },
+  
+  // Product selling specific fields
+  sell: {
+    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    price: { type: Number, min: 0 },
+    currency: { type: String, default: 'USD' },
+    condition: { type: String, enum: ['new', 'used', 'refurbished'] },
+    negotiable: { type: Boolean, default: false },
+    shipping: { type: Boolean, default: false },
+    pickup: { type: Boolean, default: true }
+  },
+  
+  // Poll specific fields
+  poll: {
+    question: { type: String, maxlength: 500 },
+    options: [{
+      text: { type: String, maxlength: 200 },
+      votes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      voteCount: { type: Number, default: 0 }
+    }],
+    isMultipleChoice: { type: Boolean, default: false },
+    allowCustomOptions: { type: Boolean, default: false },
+    expiresAt: { type: Date },
+    isActive: { type: Boolean, default: true },
+    totalVotes: { type: Number, default: 0 }
+  },
+  
+  // Location specific fields
   location: {
     name: { type: String },
+    address: { type: String },
     coordinates: {
       latitude: { type: Number },
       longitude: { type: Number }
-    }
+    },
+    placeId: { type: String }, // Google Places ID
+    category: { type: String }, // restaurant, park, etc.
+    rating: { type: Number, min: 0, max: 5 }
   },
+  
+  // File attachments
+  files: [{
+    fileId: { type: mongoose.Schema.Types.ObjectId, ref: 'File' },
+    name: { type: String },
+    size: { type: Number },
+    type: { type: String }
+  }],
+  
   hashtags: [{ type: String }],
   mentions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
@@ -248,5 +336,175 @@ postSchema.methods.sharePost = function(userId, shareMessage, userInfo) {
   this.shares.push(userId);
   return Promise.all([sharedPost.save(), this.save()]);
 };
+
+// Method to add poll vote
+postSchema.methods.addPollVote = function(userId, optionIndex) {
+  if (!this.poll || !this.poll.options || optionIndex < 0 || optionIndex >= this.poll.options.length) {
+    throw new Error('Invalid poll or option');
+  }
+
+  const option = this.poll.options[optionIndex];
+  
+  // Check if user already voted
+  const existingVote = option.votes.find(vote => vote.toString() === userId.toString());
+  if (existingVote) {
+    throw new Error('User already voted for this option');
+  }
+
+  // Add vote
+  option.votes.push(userId);
+  option.voteCount += 1;
+  this.poll.totalVotes += 1;
+
+  return this.save();
+};
+
+// Method to remove poll vote
+postSchema.methods.removePollVote = function(userId, optionIndex) {
+  if (!this.poll || !this.poll.options || optionIndex < 0 || optionIndex >= this.poll.options.length) {
+    throw new Error('Invalid poll or option');
+  }
+
+  const option = this.poll.options[optionIndex];
+  const voteIndex = option.votes.findIndex(vote => vote.toString() === userId.toString());
+  
+  if (voteIndex === -1) {
+    throw new Error('User has not voted for this option');
+  }
+
+  // Remove vote
+  option.votes.splice(voteIndex, 1);
+  option.voteCount -= 1;
+  this.poll.totalVotes -= 1;
+
+  return this.save();
+};
+
+// Method to add file attachment
+postSchema.methods.addFile = function(fileData) {
+  if (!this.files) {
+    this.files = [];
+  }
+  
+  this.files.push(fileData);
+  return this.save();
+};
+
+// Method to remove file attachment
+postSchema.methods.removeFile = function(fileId) {
+  if (!this.files) return this.save();
+  
+  this.files = this.files.filter(file => file.fileId.toString() !== fileId.toString());
+  return this.save();
+};
+
+// Method to set feeling
+postSchema.methods.setFeeling = function(feelingData) {
+  this.feeling = feelingData;
+  return this.save();
+};
+
+// Method to set location
+postSchema.methods.setLocation = function(locationData) {
+  this.location = locationData;
+  return this.save();
+};
+
+// Method to set sell information
+postSchema.methods.setSellInfo = function(sellData) {
+  this.sell = sellData;
+  return this.save();
+};
+
+// Method to set audio information
+postSchema.methods.setAudioInfo = function(audioData) {
+  this.audio = audioData;
+  return this.save();
+};
+
+// Method to set voice information
+postSchema.methods.setVoiceInfo = function(voiceData) {
+  this.voice = voiceData;
+  return this.save();
+};
+
+// Method to set GIF information
+postSchema.methods.setGifInfo = function(gifData) {
+  this.gif = gifData;
+  return this.save();
+};
+
+// Method to check if post has poll
+postSchema.methods.hasPoll = function() {
+  return this.poll && this.poll.question;
+};
+
+// Method to check if post has feeling
+postSchema.methods.hasFeeling = function() {
+  return this.feeling && this.feeling.type;
+};
+
+// Method to check if post has location
+postSchema.methods.hasLocation = function() {
+  return this.location && (this.location.name || this.location.coordinates);
+};
+
+// Method to check if post has sell info
+postSchema.methods.hasSellInfo = function() {
+  return this.sell && this.sell.productId;
+};
+
+// Method to check if post has audio
+postSchema.methods.hasAudio = function() {
+  return this.audio && this.audio.url;
+};
+
+// Method to check if post has voice
+postSchema.methods.hasVoice = function() {
+  return this.voice && this.voice.url;
+};
+
+// Method to check if post has GIF
+postSchema.methods.hasGif = function() {
+  return this.gif && this.gif.url;
+};
+
+// Method to check if post has files
+postSchema.methods.hasFiles = function() {
+  return this.files && this.files.length > 0;
+};
+
+// Method to get post type based on content
+postSchema.methods.determinePostType = function() {
+  if (this.media && this.media.length > 0) {
+    const mediaTypes = [...new Set(this.media.map(m => m.type))];
+    if (mediaTypes.length > 1) {
+      return 'mixed';
+    }
+    return mediaTypes[0] || 'text';
+  }
+  
+  if (this.poll && this.poll.question) return 'poll';
+  if (this.feeling && this.feeling.type) return 'feeling';
+  if (this.location && this.location.name) return 'location';
+  if (this.sell && this.sell.productId) return 'sell';
+  if (this.audio && this.audio.url) return 'audio';
+  if (this.voice && this.voice.url) return 'voice';
+  if (this.gif && this.gif.url) return 'gif';
+  if (this.files && this.files.length > 0) return 'file';
+  
+  return 'text';
+};
+
+// Pre-save middleware to set post type
+postSchema.pre('save', function(next) {
+  if (this.isModified('content') || this.isModified('media') || this.isModified('poll') || 
+      this.isModified('feeling') || this.isModified('location') || this.isModified('sell') ||
+      this.isModified('audio') || this.isModified('voice') || this.isModified('gif') ||
+      this.isModified('files')) {
+    this.postType = this.determinePostType();
+  }
+  next();
+});
 
 module.exports = mongoose.model('Post', postSchema);

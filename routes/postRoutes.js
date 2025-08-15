@@ -33,6 +33,17 @@ router.get('/popular', postController.getPopularPosts);
 // Get most engaged post (must be before /:id routes)
 router.get('/most-engaged', postController.getMostEngagedPost);
 
+// New post type routes (must be before /:id routes)
+router.get('/type/:postType', postController.getPostsByType);
+router.get('/feelings', postController.getPostsWithFeelings);
+router.get('/polls', postController.getPostsWithPolls);
+router.get('/location', postController.getPostsWithLocation);
+router.get('/sell', postController.getPostsWithSell);
+router.get('/audio', postController.getPostsWithAudio);
+router.get('/voice', postController.getPostsWithVoice);
+router.get('/files', postController.getPostsWithFiles);
+router.get('/gifs', postController.getPostsWithGifs);
+
 router.post('/', auth, upload.array('media', 10), postController.createPost); // Support multiple files
 router.post('/single', auth, upload.single('media'), postController.createPost); // Backward compatibility
 
@@ -52,6 +63,10 @@ router.post('/:id/boost', auth, postController.boostPost);
 router.post('/:id/share', auth, postController.sharePost);
 router.post('/:id/view', auth, postController.addView);
 router.post('/:id/review', auth, postController.addReview);
+
+// New post type action routes
+router.post('/:id/poll/vote', auth, postController.addPollVote);
+router.delete('/:id/poll/vote', auth, postController.removePollVote);
 
 // Post CRUD routes
 router.delete('/:id', auth, postController.deletePost);

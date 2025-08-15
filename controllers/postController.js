@@ -13,7 +13,21 @@ const constructFullUrl = (baseUrl, path) => {
 // Create a new post
 exports.createPost = async (req, res) => {
   try {
-    const { content, title, privacy = 'public', location, hashtags } = req.body;
+    const { 
+      content, 
+      title, 
+      privacy = 'public', 
+      location, 
+      hashtags,
+      postType = 'text',
+      audio,
+      voice,
+      gif,
+      feeling,
+      sell,
+      poll,
+      files
+    } = req.body;
     const userId = req.userId;
 
     // Get user details from database
@@ -22,10 +36,33 @@ exports.createPost = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Get user images from UserImage model
-    const UserImage = require('../models/userImage');
-    const userImage = await UserImage.findOne({ userId });
-    const userAvatar = userImage?.avatar || user.avatar || '/avatars/1.png.png';
+    // Get user avatar - prioritize UserImage model, then user.avatar, avoid hardcoded defaults
+    let userAvatar = null;
+    try {
+      const UserImage = require('../models/userImage');
+      const userImage = await UserImage.findOne({ userId });
+      userAvatar = userImage?.avatar || user.avatar;
+      
+      // Only use default avatar if no custom avatar exists
+      if (!userAvatar || userAvatar === '/avatars/1.png.png') {
+        userAvatar = null; // Set to null so frontend can handle default avatar display
+      }
+    } catch (error) {
+      console.log('⚠️ UserImage model not found, using user.avatar directly');
+      userAvatar = user.avatar;
+      
+      // Only use default avatar if no custom avatar exists
+      if (!userAvatar || userAvatar === '/avatars/1.png.png') {
+        userAvatar = null; // Set to null so frontend can handle default avatar display
+      }
+    }
+
+    console.log('👤 User avatar resolved:', {
+      userId,
+      userName: user.name || user.username,
+      userAvatar,
+      hasCustomAvatar: !!userAvatar
+    });
 
     // Handle media files
     let media = [];
@@ -47,16 +84,18 @@ exports.createPost = async (req, res) => {
         
         const isVideo = file.mimetype.startsWith('video/');
         const isAudio = file.mimetype.startsWith('audio/');
+        const isGif = file.mimetype === 'image/gif';
         
         // Cloudinary provides secure URLs directly
         const mediaItem = {
           url: file.path, // Cloudinary secure URL
           publicId: file.filename, // Cloudinary public ID for deletion
-          type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
+          type: isVideo ? 'video' : isAudio ? 'audio' : isGif ? 'gif' : 'image',
           thumbnail: isVideo ? file.path.replace('/upload/', '/upload/w_300,h_300,c_fill/') : null,
           originalName: file.originalname,
           size: file.size,
           mimetype: file.mimetype,
+          extension: file.originalname.split('.').pop().toLowerCase(),
           uploadedAt: new Date()
         };
         
@@ -91,23 +130,130 @@ exports.createPost = async (req, res) => {
       }
     }
 
-    const post = new Post({
+    // Prepare post data
+    const postData = {
       content,
       title,
       media,
       privacy,
-      location,
       hashtags: parsedHashtags,
       mentions,
       user: { userId, name: user.name, avatar: userAvatar },
-      userId
-    });
+      userId,
+      postType
+    };
+
+    // Add audio data if provided
+    if (audio) {
+      postData.audio = {
+        url: audio.url,
+        duration: audio.duration,
+        title: audio.title,
+        artist: audio.artist,
+        album: audio.album,
+        waveform: audio.waveform
+      };
+    }
+
+    // Add voice data if provided
+    if (voice) {
+      postData.voice = {
+        url: voice.url,
+        duration: voice.duration,
+        transcription: voice.transcription,
+        isPublic: voice.isPublic !== false
+      };
+    }
+
+    // Add GIF data if provided
+    if (gif) {
+      postData.gif = {
+        url: gif.url,
+        source: gif.source || 'custom',
+        tags: gif.tags || [],
+        width: gif.width,
+        height: gif.height
+      };
+    }
+
+    // Add feeling data if provided
+    if (feeling) {
+      postData.feeling = {
+        type: feeling.type,
+        intensity: feeling.intensity || 5,
+        emoji: feeling.emoji,
+        description: feeling.description
+      };
+    }
+
+    // Add sell data if provided
+    if (sell) {
+      postData.sell = {
+        productId: sell.productId,
+        price: sell.price,
+        currency: sell.currency || 'USD',
+        condition: sell.condition || 'new',
+        negotiable: sell.negotiable || false,
+        shipping: sell.shipping || false,
+        pickup: sell.pickup !== false
+      };
+    }
+
+    // Add poll data if provided
+    if (poll && poll.question && poll.options && poll.options.length > 0) {
+      postData.poll = {
+        question: poll.question,
+        options: poll.options.map(option => ({
+          text: option.text,
+          votes: [],
+          voteCount: 0
+        })),
+        isMultipleChoice: poll.isMultipleChoice || false,
+        allowCustomOptions: poll.allowCustomOptions || false,
+        expiresAt: poll.expiresAt ? new Date(poll.expiresAt) : null,
+        isActive: true,
+        totalVotes: 0
+      };
+    }
+
+    // Add location data if provided
+    if (location) {
+      postData.location = {
+        name: location.name,
+        address: location.address,
+        coordinates: location.coordinates,
+        placeId: location.placeId,
+        category: location.category,
+        rating: location.rating
+      };
+    }
+
+    // Add file attachments if provided
+    if (files && files.length > 0) {
+      postData.files = files.map(file => ({
+        fileId: file.fileId,
+        name: file.name,
+        size: file.size,
+        type: file.type
+      }));
+    }
+
+    const post = new Post(postData);
 
     console.log('📝 Post object before saving:', {
       content: post.content,
       media: post.media,
       mediaLength: post.media?.length,
-      userId: post.userId
+      userId: post.userId,
+      postType: post.postType,
+      hasPoll: !!post.poll,
+      hasFeeling: !!post.feeling,
+      hasLocation: !!post.location,
+      hasSell: !!post.sell,
+      hasAudio: !!post.audio,
+      hasVoice: !!post.voice,
+      hasGif: !!post.gif,
+      hasFiles: !!post.files
     });
 
     await post.save();
@@ -115,7 +261,8 @@ exports.createPost = async (req, res) => {
     console.log('📝 Post saved successfully:', {
       id: post._id,
       media: post.media,
-      mediaLength: post.media?.length
+      mediaLength: post.media?.length,
+      postType: post.postType
     });
 
     // Populate user info
@@ -259,6 +406,27 @@ exports.getPostsByUserId = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Get user avatar - prioritize UserImage model, then user.avatar, avoid hardcoded defaults
+    let userAvatar = null;
+    try {
+      const UserImage = require('../models/userImage');
+      const userImage = await UserImage.findOne({ userId });
+      userAvatar = userImage?.avatar || user.avatar;
+      
+      // Only use default avatar if no custom avatar exists
+      if (!userAvatar || userAvatar === '/avatars/1.png.png') {
+        userAvatar = null; // Set to null so frontend can handle default avatar display
+      }
+    } catch (error) {
+      console.log('⚠️ UserImage model not found, using user.avatar directly');
+      userAvatar = user.avatar;
+      
+      // Only use default avatar if no custom avatar exists
+      if (!userAvatar || userAvatar === '/avatars/1.png.png') {
+        userAvatar = null; // Set to null so frontend can handle default avatar display
+      }
     }
 
     // Get posts by the specific user - check both userId and user.userId fields
@@ -1410,5 +1578,334 @@ exports.boostPost = async (req, res) => {
   } catch (error) {
     console.error('Error boosting/unboosting post:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Add poll vote
+exports.addPollVote = async (req, res) => {
+  try {
+    const { postId, optionIndex } = req.body;
+    const userId = req.userId;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (!post.poll || !post.poll.question) {
+      return res.status(400).json({ message: 'Post does not have a poll' });
+    }
+
+    await post.addPollVote(userId, optionIndex);
+    
+    res.json({ 
+      message: 'Vote added successfully',
+      poll: post.poll
+    });
+  } catch (err) {
+    console.error('Error adding poll vote:', err);
+    res.status(500).json({ message: 'Error adding poll vote', error: err.message });
+  }
+};
+
+// Remove poll vote
+exports.removePollVote = async (req, res) => {
+  try {
+    const { postId, optionIndex } = req.body;
+    const userId = req.userId;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (!post.poll || !post.poll.question) {
+      return res.status(400).json({ message: 'Post does not have a poll' });
+    }
+
+    await post.removePollVote(userId, optionIndex);
+    
+    res.json({ 
+      message: 'Vote removed successfully',
+      poll: post.poll
+    });
+  } catch (err) {
+    console.error('Error removing poll vote:', err);
+    res.status(500).json({ message: 'Error removing poll vote', error: err.message });
+  }
+};
+
+// Get posts by type
+exports.getPostsByType = async (req, res) => {
+  try {
+    const { postType } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+
+    const validTypes = ['text', 'image', 'video', 'audio', 'file', 'gif', 'voice', 'feeling', 'sell', 'poll', 'location', 'mixed'];
+    
+    if (!validTypes.includes(postType)) {
+      return res.status(400).json({ message: 'Invalid post type' });
+    }
+
+    const posts = await Post.find({ postType })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ postType });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts by type:', err);
+    res.status(500).json({ message: 'Error getting posts by type', error: err.message });
+  }
+};
+
+// Get posts with feelings
+exports.getPostsWithFeelings = async (req, res) => {
+  try {
+    const { feelingType, page = 1, limit = 20 } = req.query;
+
+    let query = { 'feeling.type': { $exists: true } };
+    if (feelingType) {
+      query['feeling.type'] = feelingType;
+    }
+
+    const posts = await Post.find(query)
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments(query);
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with feelings:', err);
+    res.status(500).json({ message: 'Error getting posts with feelings', error: err.message });
+  }
+};
+
+// Get posts with polls
+exports.getPostsWithPolls = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    const posts = await Post.find({ 'poll.question': { $exists: true } })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ 'poll.question': { $exists: true } });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with polls:', err);
+    res.status(500).json({ message: 'Error getting posts with polls', error: err.message });
+  }
+};
+
+// Get posts with location
+exports.getPostsWithLocation = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    const posts = await Post.find({ 'location.name': { $exists: true } })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ 'location.name': { $exists: true } });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with location:', err);
+    res.status(500).json({ message: 'Error getting posts with location', error: err.message });
+  }
+};
+
+// Get posts with sell info
+exports.getPostsWithSell = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    const posts = await Post.find({ 'sell.productId': { $exists: true } })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .populate('sell.productId')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ 'sell.productId': { $exists: true } });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with sell info:', err);
+    res.status(500).json({ message: 'Error getting posts with sell info', error: err.message });
+  }
+};
+
+// Get posts with audio
+exports.getPostsWithAudio = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    const posts = await Post.find({ 'audio.url': { $exists: true } })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ 'audio.url': { $exists: true } });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with audio:', err);
+    res.status(500).json({ message: 'Error getting posts with audio', error: err.message });
+  }
+};
+
+// Get posts with voice
+exports.getPostsWithVoice = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    const posts = await Post.find({ 'voice.url': { $exists: true } })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ 'voice.url': { $exists: true } });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with voice:', err);
+    res.status(500).json({ message: 'Error getting posts with voice', error: err.message });
+  }
+};
+
+// Get posts with files
+exports.getPostsWithFiles = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    const posts = await Post.find({ 'files.0': { $exists: true } })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .populate('files.fileId')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ 'files.0': { $exists: true } });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with files:', err);
+    res.status(500).json({ message: 'Error getting posts with files', error: err.message });
+  }
+};
+
+// Get posts with GIFs
+exports.getPostsWithGifs = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    const posts = await Post.find({ 'gif.url': { $exists: true } })
+      .sort({ createdAt: -1 })
+      .populate('user.userId', 'name avatar username')
+      .populate('comments.user.userId', 'name avatar')
+      .populate('likes', 'name avatar')
+      .populate('savedBy', 'name avatar')
+      .populate('views', 'name avatar')
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Post.countDocuments({ 'gif.url': { $exists: true } });
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total
+    });
+  } catch (err) {
+    console.error('Error getting posts with GIFs:', err);
+    res.status(500).json({ message: 'Error getting posts with GIFs', error: err.message });
   }
 };
