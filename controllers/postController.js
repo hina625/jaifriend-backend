@@ -85,12 +85,13 @@ exports.createPost = async (req, res) => {
         const isVideo = file.mimetype.startsWith('video/');
         const isAudio = file.mimetype.startsWith('audio/');
         const isGif = file.mimetype === 'image/gif';
+        const isDocument = file.mimetype.startsWith('application/') || file.mimetype.startsWith('text/');
         
         // Cloudinary provides secure URLs directly
         const mediaItem = {
           url: file.path, // Cloudinary secure URL
           publicId: file.filename, // Cloudinary public ID for deletion
-          type: isVideo ? 'video' : isAudio ? 'audio' : isGif ? 'gif' : 'image',
+          type: isVideo ? 'video' : isAudio ? 'audio' : isGif ? 'gif' : isDocument ? 'file' : 'image',
           thumbnail: isVideo ? file.path.replace('/upload/', '/upload/w_300,h_300,c_fill/') : null,
           originalName: file.originalname,
           size: file.size,
