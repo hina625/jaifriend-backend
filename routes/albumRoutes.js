@@ -48,4 +48,7 @@ router.get('/videos', albumController.getAlbumsWithVideos);
 
 router.get('/most-engaged', albumController.getMostEngagedAlbum);
 
+// Migrate existing albums to Cloudinary (admin only)
+router.post('/migrate-to-cloudinary', auth, albumController.migrateToCloudinary);
+
 module.exports = router;

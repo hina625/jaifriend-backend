@@ -21,6 +21,11 @@ NODE_ENV=development
 # File Upload Configuration
 MAX_FILE_SIZE=50mb
 
+# Cloudinary Configuration (for media storage)
+CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+
 # OAuth Configuration (if using social login)
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
@@ -49,5 +54,9 @@ console.log('\n🔧 Configuration Instructions:');
 console.log('1. Update FRONTEND_URL to match your frontend application URL');
 console.log('2. Set up your MongoDB connection string in MONGO_URI');
 console.log('3. Generate secure JWT_SECRET and SESSION_SECRET for production');
-console.log('4. Configure OAuth credentials if using social login');
+console.log('4. Configure Cloudinary credentials for media storage:');
+console.log('   - Sign up at https://cloudinary.com');
+console.log('   - Get your Cloud Name, API Key, and API Secret from dashboard');
+console.log('   - Update CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
+console.log('5. Configure OAuth credentials if using social login');
 console.log('\n🚀 Your Express app is now configured to use the frontend URL in all routes!'); 

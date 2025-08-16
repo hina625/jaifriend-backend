@@ -30,6 +30,7 @@ const verificationRoutes = require('./routes/verificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const websiteSettingsRoutes = require('./routes/websiteSettingsRoutes');
 const fileRoutes = require('./routes/fileRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 const session = require('express-session');
 const fs = require('fs');
 const path = require('path');
@@ -160,6 +161,7 @@ app.use('/api/verification', verificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/website-settings', websiteSettingsRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/search', searchRoutes);
 app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
 app.get('/', (req, res) => {

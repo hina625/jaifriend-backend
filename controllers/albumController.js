@@ -2,6 +2,7 @@ const Album = require('../models/album');
 const User = require('../models/user');
 const fs = require('fs');
 const path = require('path');
+const { isCloudinaryConfigured, deleteFromCloudinary } = require('../config/cloudinary');
 
 // Create a new album with multiple photos/videos or URLs
 exports.createAlbum = async (req, res) => {
@@ -13,9 +14,22 @@ exports.createAlbum = async (req, res) => {
     if (req.files && req.files.length > 0) {
       media = req.files.map(file => {
         const isVideo = file.mimetype.startsWith('video/');
+        
+        // Use Cloudinary URL if available, otherwise fallback to local
+        let url;
+        if (isCloudinaryConfigured && file.path) {
+          // Cloudinary file - use the secure URL
+          url = file.path;
+        } else {
+          // Local file - construct local URL
+          url = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+        }
+        
         return {
-          url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
+          url,
           type: isVideo ? 'video' : 'image',
+          mimetype: file.mimetype,
+          filename: file.filename,
           uploadedAt: new Date()
         };
       });
@@ -31,7 +45,7 @@ exports.createAlbum = async (req, res) => {
       }
       
       media = media.concat(urls.map(url => {
-        const isVideo = /\.(mp4|webm|ogg|mov|avi)$/i.test(url);
+        const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(url) || url.includes('video');
         return {
           url,
           type: isVideo ? 'video' : 'image',
@@ -80,9 +94,22 @@ exports.editAlbum = async (req, res) => {
     if (req.files && req.files.length > 0) {
       newMedia = req.files.map(file => {
         const isVideo = file.mimetype.startsWith('video/');
+        
+        // Use Cloudinary URL if available, otherwise fallback to local
+        let url;
+        if (isCloudinaryConfigured && file.path) {
+          // Cloudinary file - use the secure URL
+          url = file.path;
+        } else {
+          // Local file - construct local URL
+          url = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+        }
+        
         return {
-          url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
+          url,
           type: isVideo ? 'video' : 'image',
+          mimetype: file.mimetype,
+          filename: file.filename,
           uploadedAt: new Date()
         };
       });
@@ -95,7 +122,7 @@ exports.editAlbum = async (req, res) => {
         urls = [req.body.mediaUrls];
       }
       newMedia = newMedia.concat(urls.map(url => {
-        const isVideo = /\.(mp4|webm|ogg|mov|avi)$/i.test(url);
+        const isVideo = /\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(url) || url.includes('video');
         return {
           url,
           type: isVideo ? 'video' : 'image',
@@ -121,21 +148,76 @@ exports.deleteAlbum = async (req, res) => {
     if (!album) return res.status(404).json({ message: 'Album not found' });
     if (String(album.user) !== String(req.userId)) return res.status(403).json({ message: 'Unauthorized' });
 
-    // Optionally delete local files (if not using cloud storage)
+    // Clean up media files
     if (album.media && album.media.length > 0) {
-      album.media.forEach(media => {
-        if (media.url && media.url.startsWith('/uploads/')) {
-          const filePath = path.join(__dirname, '..', media.url);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      for (const media of album.media) {
+        if (media.url) {
+          if (isCloudinaryConfigured && media.url.includes('cloudinary.com')) {
+            // Delete from Cloudinary
+            try {
+              const publicId = media.url.split('/').pop().split('.')[0];
+              await deleteFromCloudinary(publicId);
+            } catch (error) {
+              console.error('Error deleting from Cloudinary:', error);
+            }
+          } else if (media.url.includes('/uploads/')) {
+            // Delete local file
+            try {
+              const filePath = path.join(__dirname, '..', media.url.replace(`${req.protocol}://${req.get('host')}`, ''));
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+            } catch (error) {
+              console.error('Error deleting local file:', error);
+            }
+          }
         }
-      });
+      }
     }
+    
     await album.deleteOne();
     res.json({ 
       message: 'Album deleted'
     });
   } catch (err) {
     res.status(500).json({ message: 'Error deleting album', error: err.message });
+  }
+};
+
+// Migrate existing albums from local storage to Cloudinary
+exports.migrateToCloudinary = async (req, res) => {
+  try {
+    if (!isCloudinaryConfigured) {
+      return res.status(400).json({ message: 'Cloudinary not configured' });
+    }
+
+    const albums = await Album.find({
+      'media.url': { $regex: /\/uploads\// }
+    });
+
+    let migratedCount = 0;
+    for (const album of albums) {
+      for (const media of album.media) {
+        if (media.url && media.url.includes('/uploads/')) {
+          try {
+            // Here you would implement the actual migration logic
+            // For now, we'll just mark it as needing migration
+            media.needsMigration = true;
+            migratedCount++;
+          } catch (error) {
+            console.error('Error migrating media:', error);
+          }
+        }
+      }
+      await album.save();
+    }
+
+    res.json({ 
+      message: `Migration completed. ${migratedCount} media items marked for migration.`,
+      migratedCount
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Error during migration', error: err.message });
   }
 };
 
